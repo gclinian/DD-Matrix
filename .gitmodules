@@ -1,2 +1,2 @@
-[submodule "AutoQ"]
-	path = AutoQ
+[submodule "ext/AutoQ"]
+	path = ext/AutoQ
