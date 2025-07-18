@@ -1,2 +1,3 @@
 [submodule "ext/AutoQ"]
 	path = ext/AutoQ
+	url = https://github.com/fmlab-iis/AutoQ.git
