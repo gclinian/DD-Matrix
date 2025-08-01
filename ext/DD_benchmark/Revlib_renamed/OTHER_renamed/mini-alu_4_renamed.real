@@ -1,0 +1,16 @@
+# Function: mini-alu
+# Used Library: MCT (gates: 6 , quantum costs: 62)
+# This file has been taken from RevLib (www.revlib.org).
+.version 1.0
+.numvars 4
+.variables q[0] q[1] q[2] q[3]
+.inputs q[0] q[1] q[2] q[3]
+.outputs g g o1 o2
+.begin
+t3 q[0] q[3] q[1]
+t4 q[0] q[1] q[3] q[2]
+t4 q[1] q[2] q[3] q[0]
+t4 q[0] q[2] q[3] q[1]
+t3 q[1] q[2] q[3]
+t4 q[0] q[1] q[3] q[2]
+.end

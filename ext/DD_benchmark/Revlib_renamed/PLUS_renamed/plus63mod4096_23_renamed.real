@@ -1,0 +1,62 @@
+# This file has been generated using RevKit 1.1 (www.revkit.org)
+# Command Line:
+# ./tools/bdd_synthesis.py --filename plus63mod4096_79.pla --realname plus63mod4096_79.real
+# Based on the approach proposed in R. Wille and R. Drechsler. BDD-based synthesis of reversible logic for large functions. In Design Automation Conf., pages 270-275, 2009.
+.version 2.0
+.numvars 23
+.variables q[0] q[1] q[2] q[3] q[4] q[5] q[6] q[7] q[8] q[9] q[10] q[11] q[12] q[13] q[14] q[15] q[16] q[17] q[18] q[19] q[20] q[21] q[22]
+.inputs a b c d e f g h i j k l 0 0 0 0 0 0 0 0 0 0 1
+.outputs g g g g g g g g g g g l j i h g f e d c b a k
+.constants ------------00000000001
+.garbage 11111111111------------
+.begin
+t2 q[10] q[12]
+t3 q[10] q[11] q[12]
+t2 q[11] q[12]
+t2 q[9] q[13]
+t3 q[9] q[12] q[13]
+t2 q[12] q[13]
+t2 q[8] q[14]
+t3 q[8] q[13] q[14]
+t2 q[13] q[14]
+t2 q[7] q[15]
+t3 q[7] q[14] q[15]
+t2 q[14] q[15]
+t2 q[6] q[16]
+t3 q[6] q[15] q[16]
+t2 q[15] q[16]
+t3 q[5] q[16] q[17]
+t3 q[4] q[17] q[18]
+t3 q[3] q[18] q[19]
+t3 q[2] q[19] q[20]
+t3 q[1] q[20] q[21]
+t2 q[0] q[21]
+t1 q[21]
+t2 q[1] q[20]
+t1 q[20]
+t2 q[2] q[19]
+t1 q[19]
+t2 q[3] q[18]
+t1 q[18]
+t2 q[4] q[17]
+t1 q[17]
+t2 q[5] q[16]
+t1 q[16]
+t2 q[6] q[15]
+t1 q[15]
+t2 q[7] q[14]
+t1 q[14]
+t2 q[8] q[13]
+t1 q[13]
+t2 q[9] q[12]
+t1 q[12]
+t2 q[10] q[22]
+t2 q[11] q[22]
+t1 q[21]
+t1 q[20]
+t1 q[19]
+t1 q[18]
+t1 q[17]
+t1 q[16]
+t1 q[11]
+.end

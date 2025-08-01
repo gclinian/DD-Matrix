@@ -1,0 +1,25 @@
+# Function: Sample function (sf)
+# Note: Embedding with constant 0
+# Used Library: MCT (Gates: NOT(5) TOF(6) 19, Quantum costs: 51)
+# This file was created by Zakaria Hamza using ESOPSolver v.0.
+# This file has been taken from RevLib (www.revlib.org).
+.version 1.0
+.numvars 5
+.variables q[0] q[1] q[2] q[3] q[4]
+.inputs q[0] q[1] q[2] q[3] 0
+.outputs g g g g q[4]
+.constants ----0
+.garbage 1111-
+.begin
+t1 q[1]
+t4 q[0] q[1] q[3] q[4]
+t1 q[0]
+t3 q[0] q[1] q[4]
+t1 q[2]
+t4 q[0] q[1] q[2] q[4]
+t1 q[1]
+t3 q[0] q[1] q[4]
+t1 q[2]
+t3 q[1] q[2] q[4]
+t3 q[0] q[3] q[4]
+.end
