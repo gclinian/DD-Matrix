@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 
-from dd_sparse import dd_sparse_numpy, GateType, GATE_UNITARIES, SingleQubitGate, ControlledGate
+from dd_sparse import *
 import random
 import time
+from sys import argv
 
 
 def random_operations(num_operations, num_qubits, threshold=0.5):
@@ -33,43 +34,31 @@ def random_operations(num_operations, num_qubits, threshold=0.5):
             ops.append(ControlledGate(gate, a, b, c, d, target, [control]))
     return ops
 
+def _view_operations(operations: List[GateOperation]):
+    for op in operations:
+        print(op.gate.name, op.target)
 
-def test_simulation(num_qubits, num_gates, threshold=0.5):
+def test_simulation(num_qubits, num_gates, threshold=1):
     """
     Generate a random circuit and compare strong vs. weak simulation performance.
     """
-    print(f"\nTesting {num_qubits} qubits, {num_gates} gates (threshold={threshold})")
 
-    init_matrix_size = 2 ** num_qubits
+    init_matrix_size = 2 * num_qubits + 1
 
     # Generate operations excluding ARBITRARY
     operations = random_operations(num_gates, num_qubits, threshold)
+    
+    # _view_operations(operations)
 
-    # Strong simulation
-    strong_result = dd_sparse_numpy(
-        operations,
-        init_matrix_size,
-        num_qubits,
-        MODE='strong_simulation',
-        DEBUG=False
-    )
+    
 
     # Weak simulation
     weak_result = dd_sparse_numpy(
         operations,
         init_matrix_size,
         num_qubits,
-        MODE='weak_simulation',
-        DEBUG=False
+        MODE='weak_simulation'
     )
-
-    # Display results
-    print("Strong Simulation:")
-    print(f"  Time Spent: {strong_result['time_spent']:.4f} s")
-    print(f"  Avg CPU:    {strong_result.get('avg_cpu', 'N/A'):.1f}%")
-    print(f"  Peak Mem:   {strong_result.get('peak_mem', 'N/A'):.1f} MB")
-    if strong_result.get('error'):
-        print(f"  Error:      {strong_result['error']}")
 
     print("Weak Simulation:")
     print(f"  Time Spent: {weak_result['time_spent']:.4f} s")
@@ -78,18 +67,40 @@ def test_simulation(num_qubits, num_gates, threshold=0.5):
     if weak_result.get('error'):
         print(f"  Error:      {weak_result['error']}")
 
+    print("" + "-" * 30)
+
+    
+    # Strong simulation
+    strong_result = dd_sparse_numpy(
+        operations,
+        init_matrix_size,
+        num_qubits,
+        MODE='strong_simulation'
+    )
+    
+    # Display results
+    print("Strong Simulation:")
+    print(f"  Time Spent: {strong_result['time_spent']:.4f} s")
+    print(f"  Avg CPU:    {strong_result.get('avg_cpu', 'N/A'):.1f}%")
+    print(f"  Peak Mem:   {strong_result.get('peak_mem', 'N/A'):.1f} MB")
+    if strong_result.get('error'):
+        print(f"  Error:      {strong_result['error']}")
+    
     print("" + "-" * 50)
 
+    
 
-def main():
+
+def main(num_qubits, num_gates):
     # Define test configurations: (num_qubits, num_gates)
-    configs = [
-        (3, 3)
-    ]
+    configs = [(num_qubits, num_gates) for i in range(20)]
 
+    idx = 1
     for nq, ng in configs:
+        print(f"Test {idx}/{len(configs)}: {nq} qubits, {ng} gates")
+        idx += 1
         test_simulation(nq, ng)
 
 
 if __name__ == "__main__":
-    main()
+    main(int(argv[1]), int(argv[2]))
