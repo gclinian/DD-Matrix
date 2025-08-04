@@ -1,0 +1,33 @@
+# Function: ham7
+# Used Library: MCT (gates: 21, quantum costs: 65)
+# This file have been taken from RevLib (www.revlib.org).
+.version 1.0
+.numvars 7
+.variables q[0] q[1] q[2] q[3] q[4] q[5] q[6]
+.inputs q[0] q[1] q[2] q[3] q[4] q[5] q[6]
+.outputs q[0] q[1] q[2] q[3] q[4] q[5] q[6]
+.constants -------
+.garbage -------
+.begin
+t2 q[2] q[1]
+t4 q[4] q[5] q[6] q[1]
+t2 q[1] q[0]
+t2 q[3] q[1]
+t2 q[3] q[2]
+t2 q[6] q[3]
+t3 q[5] q[6] q[1]
+t2 q[4] q[5]
+t4 q[4] q[5] q[6] q[3]
+t3 q[4] q[6] q[2]
+t3 q[4] q[5] q[6]
+t3 q[5] q[6] q[4]
+t2 q[2] q[5]
+t3 q[4] q[6] q[5]
+t2 q[1] q[4]
+t2 q[2] q[4]
+t2 q[3] q[6]
+t2 q[6] q[5]
+t2 q[1] q[3]
+t2 q[0] q[3]
+t2 q[0] q[2]
+.end

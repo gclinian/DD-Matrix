@@ -1,0 +1,44 @@
+# Function: reversible ripple carry adder bit width 8
+# Used Library: NCT (gates: 32, quantum costs: 96)
+# This file have been taken from RevLib (www.revlib.org). 
+.version 1.0
+.numvars 25
+.variables q[0] q[1] q[2] q[3] q[4] q[5] q[6] q[7] q[8] q[9] q[10] q[11] q[12] q[13] q[14] q[15] q[16] q[17] q[18] q[19] q[20] q[21] q[22] q[23] q[24]
+.inputs 0 y7 q[17] 0 y6 q[18] 0 y5 q[19] 0 y4 q[20] 0 y3 q[21] 0 y2 q[22] 0 y1 q[23] 0 cin y0 q[24]
+.outputs cout g g s7 g g s6 g g s5 g g s4 g g s3 g g s2 g g s1 s0 g g
+.constants 0--0--0--0--0--0--0--0---
+.garbage -11-11-11-11-11-11-11--11
+.begin
+t3 q[24] q[23] q[21]
+t2 q[24] q[23]
+t3 q[23] q[22] q[21]
+t2 q[23] q[22]
+t3 q[20] q[19] q[18]
+t2 q[20] q[19]
+t3 q[19] q[21] q[18]
+t2 q[19] q[21]
+t3 q[17] q[16] q[15]
+t2 q[17] q[16]
+t3 q[16] q[18] q[15]
+t2 q[16] q[18]
+t3 q[14] q[13] q[12]
+t2 q[14] q[13]
+t3 q[13] q[15] q[12]
+t2 q[13] q[15]
+t3 q[11] q[10] q[9]
+t2 q[11] q[10]
+t3 q[10] q[12] q[9]
+t2 q[10] q[12]
+t3 q[8] q[7] q[6]
+t2 q[8] q[7]
+t3 q[7] q[9] q[6]
+t2 q[7] q[9]
+t3 q[5] q[4] q[3]
+t2 q[5] q[4]
+t3 q[4] q[6] q[3]
+t2 q[4] q[6]
+t3 q[2] q[1] q[0]
+t2 q[2] q[1]
+t3 q[1] q[3] q[0]
+t2 q[1] q[3]
+.end

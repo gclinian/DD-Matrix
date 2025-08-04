@@ -1,0 +1,33 @@
+# Function: rd53
+# Used Library: MCT+P (gates: 15, quantum costs: 75)
+# This file has been taken from RevLib (www.revlib.org).
+.version 1.0
+.numvars 7
+.variables q[0] q[1] q[2] q[3] q[4] q[5] q[6]
+.inputs x1 x2 x3 x4 x5 0 0
+.outputs q[6] q[6] q[6] q[6] c0 c1 c2
+.constants -----00
+.garbage 1111---
+.define pi q[0] q[1] q[2]
+.cost 4
+.description inverse Peres gate
+t q[0] q[1]
+t q[0] q[1] q[2]
+.enddefine
+.begin
+t2 q[1] q[5]
+t2 q[2] q[1]
+pi q[1] q[0] q[5]
+t2 q[0] q[5]
+t2 q[0] q[3]
+t2 q[0] q[4]
+t3 q[3] q[4] q[5]
+t3 q[3] q[4] q[0]
+t4 q[0] q[1] q[2] q[6]
+t3 q[1] q[2] q[5]
+t3 q[0] q[2] q[6]
+t3 q[3] q[4] q[0]
+t2 q[3] q[0]
+t5 q[0] q[1] q[3] q[4] q[6]
+t2 q[0] q[4]
+.end

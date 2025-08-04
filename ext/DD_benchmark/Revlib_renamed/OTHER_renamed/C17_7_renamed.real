@@ -1,0 +1,24 @@
+# Function: C17
+# Used Library: MCT (Gates: 9, Quantum costs: 99)
+# This file have been taken from RevLib (www.revlib.org).
+.version  1.0
+# Created by tfc2real J. Rice Jan 2009
+# Parameters for Exorcism: -n 1 -r 1 -a 0 -b 1 -c 1
+# Templates applied in both directions
+.numvars 7
+.variables q[0] q[1] q[2] q[3] q[4] q[5] q[6]
+.inputs 0 0 q[2] q[3] q[4] q[5] q[6]
+.outputs q[0] q[1] q[2] q[3] q[4] q[5] q[6]
+.constants 00-----
+.garbage 11111--
+.begin
+t2 q[5] q[1]
+t2 q[5] q[0]
+t4 q[5] q[4] q[3] q[1]
+t4 q[5] q[4] q[3] q[0]
+t5 q[6] q[5] q[4] q[3] q[1]
+t1 q[5]
+t4 q[6] q[5] q[4] q[1]
+t3 q[5] q[2] q[0]
+t5 q[5] q[4] q[3] q[2] q[0]
+.end
