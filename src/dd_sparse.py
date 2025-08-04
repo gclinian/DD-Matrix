@@ -286,7 +286,7 @@ def compute_result(L, R, seq: List[int], leaf: List[int], TYPE) -> complex:
     return result.item()
 
 class SimulationAllPath:
-    def __init__(self, L, R, leaf, NUM_QUBITS, TYPE, DEBUG=True):
+    def __init__(self, L, R, leaf, NUM_QUBITS, TYPE, DEBUG=False):
         self.L = L
         self.R = R
         self.LL = self.L@self.L
@@ -489,20 +489,25 @@ class SimulationAllPath:
     def results(self):
         return self.sim_result
 
-def simulation_all_path(L, R, leaf, NUM_QUBITS, TYPE, DEBUG=True):
+def simulation_all_path(L, R, leaf, NUM_QUBITS, TYPE, DEBUG=False):
     sim = SimulationAllPath(L, R, leaf, NUM_QUBITS, TYPE, DEBUG=DEBUG)
     sim.simulation()
     # for val, seq in sim:
     #     pass  # Iterate through all paths to compute results
     return sim.results()
 
-def show_matrix(matrix: List[List[complex]]):
+def show_adj_list(adj_list: Dict[int, Dict[int, Tuple[float, float]]]):
     """
-    Display a matrix in a readable format.
+    Display the adjacency list in a readable format.
+    
+    Args:
+        adj_list (Dict[int, Dict[int, Tuple[float, float]]]): 
+            The adjacency list to display.
     """
-    for row in matrix:
-        print(" | ".join(f"{val:8.4f}" for val in row))
-    print("\n")
+    for node, edges in adj_list.items():
+        print(f"Node {node}:")
+        for child, (l_val, r_val) in edges.items():
+            print(f"-> Child {child}: L={l_val:.2f}, R={r_val:.2f}")
 
 class WeakSimulation:
 
@@ -516,7 +521,7 @@ class WeakSimulation:
                  TYPE: str = 'numpy', 
                  num_shots: int = 1024,
                  tol: float = 1e-10,
-                 DEBUG: bool = True
+                 DEBUG: bool = False
     ):
         self.L = L
         self.R = R
@@ -528,18 +533,18 @@ class WeakSimulation:
         self.DEBUG = DEBUG
 
         if self.TYPE == 'numpy':
-            import numpy as np
+            import numpy as cp
             import scipy.sparse as sparse
-            self.L = self.L.toarray()
-            self.R = self.R.toarray()
+            
         elif self.TYPE == 'cupy':
             import cupy as cp
             import cupyx.scipy.sparse as sparse
-            self.L = self.L.toarray()
-            self.R = self.R.toarray()
+
         else:
             raise ValueError("Unsupported TYPE. Use 'numpy' or 'cupy'.")
 
+        self.cp = cp
+        self.sparse = sparse
 
         self.one_terminals = Mapping[-2]
         self.zero_terminals = Mapping[-1]
@@ -548,30 +553,77 @@ class WeakSimulation:
 
         self.adj_list = {}
         self.parent_map = {}
-        self.build_adj_list_and_parent_map()
 
         self.sim_result = {}
         self.probs = {}
         self.downstream = {}
         self.upstream = {}
 
-    def build_adj_list_and_parent_map(self):
+        self.reachable_set = set()
+        self.pruned_set = set()
+        assert(self.NUM_QUBITS + 2 == len(self.Mapping))
+        self.my_Mapping = [[] for _ in range(self.NUM_QUBITS + 2)]
 
-        for i in range(self.num_of_nodes):
-            self.adj_list[i] = {}
-            self.parent_map[i] = []
+    def build_adj_list(self):
+        
+        if self.DEBUG:
+            print("[WEAK_SIM] Building adjacency list and parent map...")
+            print("[WEAK_SIM] Number of nodes:", self.num_of_nodes)
 
-        for i in range(self.num_of_nodes):
-            for j in range(self.num_of_nodes):
+        from collections import defaultdict
 
-                if abs(self.L[j, i]) > self.tol or abs(self.R[j, i]) > self.tol:
-                    self.adj_list[i][j] = (float(abs(self.L[j, i]) ** 2), float(abs(self.R[j, i]) ** 2))
-                    self.parent_map[j].append(i)
+        L_coo = self.L.tocoo()
+        R_coo = self.R.tocoo()
+
+        edges = defaultdict(lambda: [0.0, 0.0])
+
+        for j, i, v in zip(L_coo.row, L_coo.col, L_coo.data):    
+            edges[(int(i), int(j))][0] = float(abs(v) ** 2)
+
+        for j, i, v in zip(R_coo.row, R_coo.col, R_coo.data):    
+            edges[(int(i), int(j))][1] = float(abs(v) ** 2)
 
 
+        if self.DEBUG:
+            print("[WEAK_SIM] Edges found:", len(edges))
+
+        for (i, j), (wL, wR) in edges.items():
+            
+            if i in self.adj_list:
+                self.adj_list[i][j] = (wL, wR)
+            else:
+                self.adj_list[i] = {j: (wL, wR)}
+            
+            if j not in self.adj_list:
+                self.adj_list[j] = {}
+
+    def verify_direction(self, Mapping):
+        level = {}
+        for lvl, nodes in enumerate(Mapping):
+            for n in nodes:
+                level[n] = lvl
+
+        bad_edges = []
+        for p, children in self.adj_list.items():
+            for c in children:
+                if level[p] >= level[c] and c not in Mapping[-2] and c not in Mapping[-1]:
+                    bad_edges.append((p, c, level[p], level[c]))
+        
+        if len(bad_edges) > 0:
+            print("[Error] Bad edges found in the adjacency list:")
+            for p, c, lvl_p, lvl_c in bad_edges:
+                print(f"Parent {p} (level {lvl_p}) -> Child {c} (level {lvl_c})")
+            print("[Error] The adjacency list does not respect the mapping levels.")
+        else:
+            print("[INFO] All edges in the adjacency list respect the mapping levels.")
+    
     def prune_edges(self, node_index: int = root_index) -> bool:
 
+        if self.DEBUG:
+            print(f"[WEAK_SIM] Pruning edges for node {node_index}")
+        
         if node_index in self.zero_terminals:
+            self.pruned_set.add(node_index)
             return True
         if node_index in self.one_terminals:
             return False
@@ -586,13 +638,199 @@ class WeakSimulation:
             else:
                 all_child_should_be_pruned = False
 
+        if all_child_should_be_pruned:
+            self.pruned_set.add(node_index)
+        
         return all_child_should_be_pruned
 
+    def build_parent_map(self):
+        """
+        Build a parent map for the adjacency list.
+        This map will help in computing upstream contributions.
+        """
 
+        for parent_node, children in self.adj_list.items():
+            for child_node in children:
+                if child_node not in self.parent_map:
+                    self.parent_map[child_node] = []
+                self.parent_map[child_node].append(parent_node)
+    
+    def build_reachable_set(self, node_index: int = root_index):
+        """
+        Build a set of reachable nodes starting from the root node.
+        This is used to ensure that we only compute contributions for reachable nodes.
+        """
+
+        if node_index in self.reachable_set:
+            return
+
+        self.reachable_set.add(node_index)
+
+        for child_node in self.adj_list[node_index]:
+            self.build_reachable_set(child_node)
+
+    def check_loop(self):
+        """
+        Check if there are any loops in the adjacency list.
+        This is used to ensure that the graph is acyclic.
+        """
+
+        visited = set()
+        stack = set()
+
+        def visit(node_index):
+            if node_index in stack:
+                print(f"[Error] Loop detected at node {node_index}")
+                return True
+            
+            if node_index in visited:
+                return False
+            
+            visited.add(node_index)
+            stack.add(node_index)
+
+            for child_node in self.adj_list.get(node_index, {}):
+                if visit(child_node):
+                    return True
+            
+            stack.remove(node_index)
+            return False
+
+        for node_index in self.adj_list:
+            if visit(node_index):
+                return True
+        
+        print("[INFO] No loops detected.")
+        return False
+
+    def build_my_mapping(self, node_index: int = root_index, level: int = 0):
+        
+        if node_index not in self.my_Mapping[level]:
+            if node_index in self.Mapping[-1]:
+                self.my_Mapping[-1].append(node_index)
+            elif node_index in self.Mapping[-2]:
+                self.my_Mapping[-2].append(node_index)
+            else:
+                self.my_Mapping[level].append(node_index)
+        else:
+            return
+
+
+        if node_index in self.adj_list:
+            for child_node in self.adj_list[node_index]:
+                self.build_my_mapping(child_node, level + 1)
+    
+    def check_two_mappings_are_equal(self):
+        """
+        Check if the two mappings are equal.
+        This is used to ensure that the mapping is consistent with the adjacency list.
+        """
+        are_equal = True
+
+        for i in range(len(self.my_Mapping)):
+            if set(self.my_Mapping[i]) != set(self.Mapping[i]):
+                # print("[Error] Mappings are not equal at level", i)
+                are_equal = False
+        
+        if are_equal:
+            print("[INFO] Mappings are equal.")
+        else:
+            print("[Error] Mappings are not equal.")
+    
+    def check_mapping_and_parent_map(self, Mapping: List[List[int]]) -> bool:
+        """
+        Check if the mapping and parent map are consistent.
+        This is used to ensure that the parent map is correctly built from the adjacency list.
+        """
+
+        consistent = True
+        
+        for level in range(1, len(Mapping) - 1):
+            for node_index in Mapping[level]:
+                if node_index not in self.parent_map:
+                    print(f"[Error] Node {node_index} at level {level} is not in parent_map.")
+                    consistent = False
+                else:
+                    for parent_node in self.parent_map[node_index]:
+                        if parent_node not in Mapping[level - 1]:
+                            print(f"[Error] Parent node {parent_node} of {node_index} is not in the previous level mapping.")
+                            consistent = False
+        
+        for node_index in Mapping[-1]:
+            if node_index not in self.parent_map:
+                    print(f"[Error] Node {node_index} at level {level} is not in parent_map.")
+                    consistent = False
+            else:
+                for parent_node in self.parent_map[node_index]:
+                    if parent_node not in Mapping[-3]:
+                        print(f"[Error] Parent node {parent_node} of {node_index} is not in the previous level mapping.")
+                        consistent = False
+        
+        return consistent
+    
+    def filter_adj_list(self):
+        """
+        Filter the adjacency list to only include reachable nodes.
+        This is used to optimize the simulation by ignoring unreachable nodes.
+        """
+
+        filtered_adj_list = {}
+        for node_index in self.reachable_set:
+            if node_index in self.adj_list:
+                filtered_adj_list[node_index] = self.adj_list[node_index]
+        
+        self.adj_list = filtered_adj_list
+
+    def filter_parent_map(self):
+        """
+        Filter the parent map to only include reachable nodes.
+        This is used to optimize the upstream contributions computation.
+        """
+
+        filtered_parent_map = {}
+        for node_index in self.reachable_set:
+            if node_index in self.parent_map:
+                filtered_parent_map[node_index] = list(set(self.parent_map[node_index]) & self.reachable_set)
+        
+        self.parent_map = filtered_parent_map
+    
+    def check_node(self, node_index: int):
+        """
+        Check if a node is reachable and exists in the adjacency list.
+        If not, raise an error.
+        """
+
+        print(f"\n[Error] Checking node:, {node_index}")
+
+        if node_index not in self.reachable_set:
+            print(f"[Error] Node {node_index} is not reachable from the root node.")
+        else:
+            print(f"[Error] Node {node_index} is reachable from the root node.")
+            
+        if node_index in self.pruned_set:
+            print(f"[Error] Node {node_index} has been pruned.")
+        else:
+            print(f"[Error] Node {node_index} hasn't been pruned.")
+
+        if node_index not in self.adj_list:
+            print(f"[Error] Node {node_index} does not exist in the adjacency list.")
+        else:
+            print(f"[Error] Children of node {node_index}: {list(self.adj_list[node_index].keys())}")
+        
+        if node_index not in self.parent_map:
+            print(f"[Error] Node {node_index} is not in parent_map.")
+        else:
+            print(f"[Error] Node {node_index} is in parent_map.")
+        
     def compute_downstream_contributions(self, node_index: int = root_index) -> float:
 
         if node_index in self.one_terminals:
+            self.downstream[node_index] = 1.0
             return 1.0
+
+        if node_index in self.zero_terminals:
+            self.downstream[node_index] = 0.0
+            return 0.0
 
         contributions = 0
 
@@ -603,7 +841,6 @@ class WeakSimulation:
 
         return contributions
 
-
     def compute_upstream_contributions(self):
 
         from collections import deque
@@ -612,33 +849,67 @@ class WeakSimulation:
         Q.append(self.root_index)
         self.upstream[self.root_index] = 1.0
 
-        # if self.DEBUG:
-            # print("[WEAK_SIM] Initial Queue:", list(Q))
-            # print("[WEAK_SIM] Initial Upstream Contributions:", self.upstream)
-            # print("[WEAK_SIM] BFS Traversal Starts")
+        miss_compute = False
 
         while Q:
             node_index = Q.popleft()
 
-            # if self.DEBUG: print(f"[WEAK_SIM] Processing Node: {node_index}")
-
-            for child_node in self.adj_list[node_index]:
-                Q.append(child_node)
+            if node_index not in self.one_terminals and node_index not in self.zero_terminals:
+                for child_node in self.adj_list[node_index]:
+                    Q.append(child_node)
             
-            if node_index == self.root_index:
+            if node_index in self.upstream:
                 continue
 
             contributions = 0
 
             for parent_node in self.parent_map[node_index]:
+                if parent_node not in self.upstream:
+                    # self.check_node(parent_node)
+                    if not miss_compute:
+                        print(f"[Error] Upstream of node {parent_node}, ", end="")
+                        miss_compute = True
+                    else:
+                        print(f"{parent_node}, ", end="")
+                    continue
                 l_val, r_val = self.adj_list[parent_node][node_index]
                 contributions += (l_val + r_val) * self.upstream[parent_node]
 
             self.upstream[node_index] = contributions
         
-        # if self.DEBUG:
-        #     print("[WEAK_SIM] BFS Traversal Ends")
-        #     print("[WEAK_SIM] Final Upstream Contributions:", self.upstream)
+        if miss_compute:
+            print("have not been computed")
+
+    def compute_upstream_contributions_with_mapping(self, Mapping: List[List[int]]):
+        """
+        Compute upstream contributions using the Mapping.
+        This is used to ensure that we correctly compute contributions for each node.
+        """
+
+        miss_compute = False
+
+        for level in range(len(Mapping)):
+            for node in Mapping[level]:
+                if node == self.root_index:
+                    self.upstream[node] = 1.0
+                    continue
+                
+                self.upstream[node] = 0.0
+
+                for parent_node in self.parent_map[node]:
+                    if parent_node not in self.upstream:
+                        if not miss_compute:
+                            print(f"[Error] Upstream of node {parent_node}, ", end="")
+                            miss_compute = True
+                        else:
+                            print(f"{parent_node}, ", end="")
+                        continue
+                    
+                    l_val, r_val = self.adj_list[parent_node][node]
+                    self.upstream[node] += (l_val + r_val) * self.upstream[parent_node]
+        
+        if miss_compute:
+            print("have not been computed")
 
     def simulation_once(self) -> str:
 
@@ -653,9 +924,13 @@ class WeakSimulation:
 
             for node in processing_nodes:
                 for child in self.adj_list[node]:
+                    
+                    if node not in self.reachable_set or child not in self.reachable_set:
+                        raise ValueError(f"Node {node} or child {child} is not reachable from the root node.")
+                    
                     l_val = self.adj_list[node][child][0]
                     if l_val > 0:
-                        zero_prob += l_val * self.upstream[node] * self.downstream[child]
+                        zero_prob += l_val * self.upstream.get(node, 0) * self.downstream.get(child, 0)
 
             next_processing_nodes = []
 
@@ -680,23 +955,70 @@ class WeakSimulation:
 
     def simulation(self):
 
-        if self.DEBUG:
-            print("[WEAK_SIM] L:")
-            show_matrix(self.L)
-            print("[WEAK_SIM] R:")
-            show_matrix(self.R)
-            print("[WEAK_SIM] adj_list:", self.adj_list)
-            print("[WEAK_SIM] parent_map:", self.parent_map)
-            print("[WEAK_SIM] Mapping:", self.Mapping)
+        self.build_adj_list()
 
-        self.prune_edges()
-        if self.DEBUG: print("[WEAK_SIM] adj_list after pruned:", self.adj_list)
+        self.verify_direction(self.Mapping)
+
+        if self.DEBUG:
+            print("[WEAK_SIM] adj_list:")
+            show_adj_list(self.adj_list)
+
+        # if self.DEBUG: print("[WEAK_SIM] Pruning Edges...")
+        
+        # self.prune_edges()
+        
+        # if self.DEBUG: print("[WEAK_SIM] Edges after pruning:")
+        # if self.DEBUG: show_adj_list(self.adj_list)
+        
+        self.build_parent_map()
+        
+        if self.DEBUG: print("[WEAK_SIM] Parent Map:", self.parent_map)
+        
+        self.build_reachable_set()
+
+        self.check_loop()
+        
+        if self.DEBUG: print("[WEAK_SIM] Reachable Set:", self.reachable_set)
+        
+        self.build_my_mapping()
+
+        self.check_two_mappings_are_equal()
+        
+        print("[WEAK_SIM] Checking Mapping and Parent Map consistency...")
+        if self.check_mapping_and_parent_map(self.Mapping): 
+            print("[Info] Mapping and Parent Map are consistent.")
+        else:
+            print("[Error] Mapping and Parent Map are NOT consistent.")
+            
+        print("[WEAK_SIM] Checking My Mapping and Parent Map consistency...")
+        if self.check_mapping_and_parent_map(self.my_Mapping):
+            print("[Info] My Mapping and Parent Map are consistent.")
+        else:
+            print("[Error] My Mapping and Parent Map are NOT consistent.")
+
+
+        # self.filter_adj_list()
+        # if self.DEBUG: print("[WEAK_SIM] Filtered Adjacency List:")
+        # if self.DEBUG: show_adj_list(self.adj_list)
+
+        # self.filter_parent_map()
+        # if self.DEBUG: print("[WEAK_SIM] Filtered Parent Map:", self.parent_map)
+        
+        if self.DEBUG: print("[WEAK_SIM] Computing Downstream Contributions...")
         
         self.compute_downstream_contributions()
+        
         if self.DEBUG: print("[WEAK_SIM] Downstream Contributions:", self.downstream)
         
+        if self.DEBUG: print("[WEAK_SIM] Computing Upstream Contributions...")
+        
         self.compute_upstream_contributions()
+
+        # self.compute_upstream_contributions_with_mapping(self.my_Mapping)
+        
         if self.DEBUG: print("[WEAK_SIM] Upstream Contributions:", self.upstream)
+
+        if self.DEBUG: print("[WEAK_SIM] Starting Simulation...")
 
         for _ in range(self.num_shots):
 
@@ -706,6 +1028,8 @@ class WeakSimulation:
                 self.sim_result[result] += 1
             else:
                 self.sim_result[result] = 1
+        
+        if self.DEBUG: print("[WEAK_SIM] Simulation Results:", self.sim_result)
 
     def get_result(self) -> Dict[str, int]:
 
@@ -732,16 +1056,11 @@ def weak_simulation(L, R, Mapping: List[List[int]], NUM_QUBITS: int, TYPE: str =
     weak_sim = WeakSimulation(L, R, Mapping, NUM_QUBITS, TYPE, num_shots, tol)
     return weak_sim.get_result()
 
-def dd_sparse(operations: List[GateOperation], 
-              MATRIX_SIZE: int, 
-              NUM_QUBITS: int, 
-              TYPE: str, 
-              MODE: str = 'strong_simulation', 
-              DEBUG: bool = True
-) -> Tuple[List[List[complex]], List[List[complex]], List[List[int]]]:
-
+def dd_sparse(operations: List[GateOperation], MATRIX_SIZE: int, NUM_QUBITS: int, TYPE: str, MODE: str = 'strong_simulation', DEBUG = False):
     L, R, Mapping = initialization_sparse(MATRIX_SIZE, NUM_QUBITS, TYPE)
-
+    # print("Init Mapping: ", Mapping)
+    # print("L:", L)
+    # print("R:", R)
     total_start = time.time()
 
     if TYPE == 'numpy':
@@ -750,11 +1069,17 @@ def dd_sparse(operations: List[GateOperation],
     elif TYPE == 'cupy':
         import cupy as cp
         from cupyx.scipy import sparse
-
-    def apply_the_unitary(L, R, op, Mapping):
-
+    
+    for op in operations:
+        if time.time() - total_start > 60:
+            raise TimeoutError("Timeout: 60s.")
+        
         MATRIX_SIZE = L.shape[0]
-
+        # print("MATRIX_SIZE: ", MATRIX_SIZE)
+        # print("L: ", L)
+        # print("R: ", R)
+        L_U, R_U = copy.deepcopy(L), copy.deepcopy(R)
+        
         A = cp.ones(MATRIX_SIZE, dtype=complex)
         A[Mapping[op.target]] = op.a
         B = cp.zeros(MATRIX_SIZE, dtype=complex)
@@ -768,173 +1093,165 @@ def dd_sparse(operations: List[GateOperation],
         B = sparse.diags(B, offsets=0, format='csr')
         C = sparse.diags(C, offsets=0, format='csr')
         D = sparse.diags(D, offsets=0, format='csr')
+    
 
         L_U = L @ A + R @ B
         R_U = L @ C + R @ D
 
-        return L_U, R_U
+        if isinstance(op, SingleQubitGate):
+            L, R = L_U, R_U
+            # print("Mapping: ", Mapping)
+        
+        elif isinstance(op, ControlledGate):
+            MATRIX_SIZE_OLD = MATRIX_SIZE
+            for control in reversed(op.control):
+                keep = cp.zeros(MATRIX_SIZE_OLD, dtype=int)
+                keep_complement = cp.ones(MATRIX_SIZE_OLD, dtype=int)
+                keep[Mapping[control]] = 1
+                keep_complement[Mapping[control]] = 0
+                D = sparse.diags(keep, offsets=0, format='csr')
+                D_complement = sparse.diags(keep_complement, offsets=0, format='csr')
 
-    def make_keep_mask(control, Mapping, MATRIX_SIZE_OLD):
+                if control < op.target:
+                    R_masked = R @ D_complement
+                    R_U_masked = R_U[:, :MATRIX_SIZE_OLD] @ D
 
-        keep = cp.zeros(MATRIX_SIZE_OLD, dtype=int)
-        keep_complement = cp.ones(MATRIX_SIZE_OLD, dtype=int)
-        keep[Mapping[control]] = 1
-        keep_complement[Mapping[control]] = 0
-        D = sparse.diags(keep, offsets=0, format='csr')
-        D_complement = sparse.diags(keep_complement, offsets=0, format='csr')
-        return D, D_complement
+                    L_U = sparse.bmat([[L, None],
+                        [None, L_U]], format='csr')
+                
+                    # print("Mapping: ", Mapping[control])
+                    
+                    # print("D: ", D)
+                    # print("D_complement: ", D_complement)
+                    # print("R: ", R)
+                    # print("R_U: ", R_U)
+                    # print("R_U[]: ", R_U[:, :MATRIX_SIZE_OLD])
+                    # print("R_masked: ", R_masked)
+                    # print("R_U_masked: ", R_U_masked)
 
-    def expand_unitaries(control, target, MATRIX_SIZE_OLD, L, R, L_U, R_U, D, D_complement):
+                    
+                    # if TYPE == 'cupy':
+                    #     print("R Masked Type: ", type(R_masked))
+                    #     print("R U Masked Type: ", type(R_U_masked))
+                    #     print("R U Type: ", type(R_U))
+                    #     print("R Masked shape: ", R_masked.shape)
+                    #     print("R U Masked shape: ", R_U_masked.shape)
+                    #     print("R_U shape: ", R_U.shape)
+                        # print("R_masked max row/col:", R_masked.nonzero())
+                        # print("R_U_masked max row/col:", R_U_masked.nonzero())
+                        # print("R_U max row/col:", R_U.nonzero())
 
-        if control < target:
+                    R_U = sparse.bmat([[R_masked, None],
+                        [R_U_masked, R_U]], format='csr')
+                    
+                    # print("L_U: ", L_U)
+                    # print("R_U: ", R_U)
+                else:
+                    
+                    L_U_masked = L_U @ D_complement
+                    L_masked = L[:, :MATRIX_SIZE_OLD] @ D
+                    L_U = sparse.bmat([[L_U_masked, None],
+                        [L_masked, L]], format='csr')
 
-            R_masked = R @ D_complement
-            R_U_masked = R_U[:, :MATRIX_SIZE_OLD] @ D
+                    R_U = sparse.bmat([[R_U, None],
+                        [None, R]], format='csr')
+                
+                MATRIX_SIZE += MATRIX_SIZE_OLD
 
-            L_U = sparse.bmat([[L, None], 
-                               [None, L_U]], format='csr')
+            L, R = L_U, R_U
+            # print("start traverse")
+            if DEBUG:
+                print("L: ", L)
+                print("R: ", R)
+            traverse_start = time.time()
 
-            R_U = sparse.bmat([[R_masked, None],
-                               [R_U_masked, R_U]], format='csr')
+            L_B = L.astype(bool).astype(float)
+            R_B = R.astype(bool).astype(float)
 
-        else:
-            L_U_masked = L_U @ D_complement
-            L_masked = L[:, :MATRIX_SIZE_OLD] @ D
-            L_U = sparse.bmat([[L_U_masked, None],
-                               [L_masked, L]], format='csr')
+            LR = L_B + R_B
+            LR = LR.astype(bool)
+            LR = LR.astype(float)
 
-            R_U = sparse.bmat([[R_U, None],
-                               [None, R]], format='csr')
+            traverse = sparse.csr_matrix((MATRIX_SIZE, 1), dtype=bool)
+            traverse[0, 0] = True
+            prev = -1
+            while traverse.nnz != prev:
+                prev = traverse.nnz
+                traverse = traverse.astype(float)
+                traverse = (traverse + LR @ traverse)
+                traverse = traverse.astype(bool)
 
-        return L_U, R_U
-
-    def compute_reachable(L, R, MATRIX_SIZE):
-
-        L_B = L.astype(bool).astype(float)
-        R_B = R.astype(bool).astype(float)
-
-        LR = L_B + R_B
-        LR = LR.astype(bool)
-        LR = LR.astype(float)
-
-        traverse = sparse.csr_matrix((MATRIX_SIZE, 1), dtype=bool)
-        traverse[0, 0] = True
-        prev = -1
-        while traverse.nnz != prev:
-            prev = traverse.nnz
             traverse = traverse.astype(float)
-            traverse = (traverse + LR @ traverse)
-            traverse = traverse.astype(bool)
+            traverse = set(traverse.toarray().ravel().nonzero()[0].tolist())
 
-        traverse = traverse.astype(float)
-        traverse = set(traverse.toarray().ravel().nonzero()[0].tolist())
+            # print("Traverse: ", traverse)
+            # print("end traverse, time spent:", time.time() - traverse_start)
 
-        return traverse
+            # print("start mapping")
+            mapping_start = time.time()
+            Mapping_U = [
+                sorted(
+                    [n + MATRIX_SIZE_OLD * i
+                    for i in range(1, MATRIX_SIZE // MATRIX_SIZE_OLD + 1)
+                    for n in mapping
+                    if n + MATRIX_SIZE_OLD * i in traverse] +
+                    [n for n in mapping if n in traverse]
+                )
+                for mapping in Mapping
+            ]
+            # print("Mapping_U: ", Mapping_U)
 
-    def update_mapping(Mapping, traverse, MATRIX_SIZE, MATRIX_SIZE_OLD):
+            mapping_middle = time.time()
+            # print("Mapping middle time spent:", mapping_middle - mapping_start)
+            traverse_list = list(traverse)
+            traverse_dict = {i: idx for idx, i in enumerate(traverse_list)}
+            Mapping = [[traverse_dict[node] for node in mapping_U] for mapping_U in Mapping_U]
+            # print("Mapping_U after dict: ", Mapping_U)
+            # Mapping = copy.deepcopy(Mapping_U)
+            # print("end mapping, time spent:", time.time() - mapping_middle)  
 
-        Mapping_U = [
-            sorted(
-                [n + MATRIX_SIZE_OLD * i
-                for i in range(1, MATRIX_SIZE // MATRIX_SIZE_OLD + 1)
-                for n in mapping
-                if n + MATRIX_SIZE_OLD * i in traverse] +
-                [n for n in mapping if n in traverse]
-            )
-            for mapping in Mapping
-        ]
+            # print("start construct")
+            construct_start = time.time()
 
-        mapping_middle = time.time()
 
-        traverse_list = list(traverse)
-        traverse_dict = {i: idx for idx, i in enumerate(traverse_list)}
+            not_traverse = cp.array(list(set(range(MATRIX_SIZE)) - traverse))
 
-        Mapping = [[traverse_dict[node] for node in mapping_U] for mapping_U in Mapping_U]
+            rows = cp.arange(MATRIX_SIZE)
+            rows = rows[~cp.isin(rows, not_traverse)]
+            one = cp.ones_like(rows, dtype=cp.int32)
 
-        return Mapping, mapping_middle
 
-    def project_matrices(L, R, traverse, MATRIX_SIZE):
+            S = sparse.csr_matrix((one, (cp.arange(len(rows)), rows)),
+                                    shape=(len(rows), MATRIX_SIZE), dtype=cp.complex128)
+            
+            L = S @ L @ S.T
+            R = S @ R @ S.T
 
-        not_traverse = cp.array(list(set(range(MATRIX_SIZE)) - traverse))
+            # print("end construct, time spent:", time.time() - construct_start)
 
-        rows = cp.arange(MATRIX_SIZE)
-        rows = rows[~cp.isin(rows, not_traverse)]
-        one = cp.ones_like(rows, dtype=cp.int32)
-
-        S = sparse.csr_matrix((one, (cp.arange(len(rows)), rows)),
-                                shape=(len(rows), MATRIX_SIZE), dtype=cp.complex128)
-
-        L = S @ L @ S.T
-        R = S @ R @ S.T
-
-        return L, R
-
-    def handle_controlled_gate(L, R, L_U, R_U, op, Mapping):
-
-        MATRIX_SIZE = L.shape[0]
-        MATRIX_SIZE_OLD = MATRIX_SIZE
-
-        for control in reversed(op.control):
-
-            D, D_complement = make_keep_mask(control, Mapping, MATRIX_SIZE_OLD)
-            L_U, R_U = expand_unitaries(control, op.target, MATRIX_SIZE_OLD, L, R, L_U, R_U, D, D_complement) 
-            MATRIX_SIZE += MATRIX_SIZE_OLD
-
-        L, R = L_U, R_U
-
-        if DEBUG:
-            print("L: ", L)
-            print("R: ", R)
-
-        traverse_start = time.time()
-        traverse = compute_reachable(L, R, MATRIX_SIZE)
-
-        mapping_start = time.time()
-        Mapping, mapping_middle = update_mapping(Mapping, traverse, MATRIX_SIZE, MATRIX_SIZE_OLD)
-
-        construct_start = time.time()
-        L, R = project_matrices(L, R, traverse, MATRIX_SIZE)
+            MATRIX_SIZE = L.shape[0]
 
         if not L.shape == R.shape:
             raise ValueError("Size of L and R not equal")
-
-        return L, R, Mapping
-
-    def simulation(MODE):
-
-        if MODE == 'strong_simulation':
-            sim_result = simulation_all_path(L, R, Mapping[-2], NUM_QUBITS, TYPE, DEBUG=DEBUG)
-        elif MODE == 'weak_simulation':
-            sim_result = weak_simulation(L, R, Mapping, NUM_QUBITS, TYPE, num_shots=1024)
-        elif MODE is None:
-            raise ValueError("MODE must be specified. Use 'strong_simulation' or 'weak_simulation'.")
-        else:
-            raise ValueError("Unsupported MODE. Use 'strong_simulation' or 'weak_simulation'.")
-        return sim_result
-
-    for op in operations:
-
-        if time.time() - total_start > 60:
-            raise TimeoutError("Timeout: 60s.")
-
-        L_U, R_U = apply_the_unitary(L, R, op, Mapping)
-
-        if isinstance(op, SingleQubitGate):  
-            L, R = L_U, R_U
-        elif isinstance(op, ControlledGate):     
-            L, R, Mapping = handle_controlled_gate(L, R, L_U, R_U, op, Mapping)
-
+        
         if DEBUG:
-            print("MATRIX_SIZE: ", L.shape[0])
+            print("MATRIX_SIZE: ", MATRIX_SIZE)
             print("L: ", L)
             print("R: ", R)
             print("Mapping: ", Mapping)
+    
+    if DEBUG:
+        _view_operations(operations)
 
-    sim_result = simulation(MODE)
-
+    if MODE == 'strong_simulation':
+        sim_result = simulation_all_path(L, R, Mapping[-2], NUM_QUBITS, TYPE)
+    elif MODE == 'weak_simulation':
+        sim_result = weak_simulation(L, R, Mapping, NUM_QUBITS, TYPE, num_shots=1024)
+    
+    # sim_result = 0
     return sim_result
 
-def dd_sparse_numpy(operations: List[GateOperation], INIT_MATRIX_SIZE: int, NUM_QUBITS: int, MODE: str = 'strong_simulation', DEBUG: bool = True):
+def dd_sparse_numpy(operations: List[GateOperation], INIT_MATRIX_SIZE: int, NUM_QUBITS: int, MODE: str = 'strong_simulation', DEBUG: bool = False):
 
     def monitor_cpu_usage(stop_event, result_dict, interval=0.5):
         pid = os.getpid()
@@ -964,7 +1281,7 @@ def dd_sparse_numpy(operations: List[GateOperation], INIT_MATRIX_SIZE: int, NUM_
         # for i in range(1024):
             # if time.time() - np_start > 60:
             #     raise TimeoutError("Simulation Timeout: 60s.")
-        sim_result = dd_sparse(operations, INIT_MATRIX_SIZE, NUM_QUBITS, TYPE='numpy', MODE=MODE, DEBUG=DEBUG)
+        sim_result = dd_sparse(operations, INIT_MATRIX_SIZE, NUM_QUBITS, TYPE='numpy', MODE=MODE)
 
         np_end = time.time()
 
