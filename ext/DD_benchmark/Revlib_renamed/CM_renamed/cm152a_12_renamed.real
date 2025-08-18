@@ -1,0 +1,31 @@
+# Function: cm152a
+# Used Library: MCT (Gates: 16, Quantum costs: 252)
+# This file have been taken from RevLib (www.revlib.org).
+.version  1.0
+# Created by tfc2real J. Rice Jan 2009
+# Parameters for Exorcism: -n 1 -r 1 -a 0 -b 1 -c 1
+# Templates applied in both directions
+.numvars 12
+.variables q[0] q[1] q[2] q[3] q[4] q[5] q[6] q[7] q[8] q[9] q[10] q[11]
+.inputs 0 q[1] q[2] q[3] q[4] q[5] q[6] q[7] q[8] q[9] q[10] q[11]
+.outputs q[0] q[1] q[2] q[3] q[4] q[5] q[6] q[7] q[8] q[9] q[10] q[11]
+.constants 0-----------
+.garbage 11111111111-
+.begin
+t5 q[4] q[3] q[2] q[1] q[0]
+t5 q[8] q[3] q[2] q[1] q[0]
+t4 q[8] q[3] q[2] q[0]
+t1 q[2]
+t5 q[6] q[3] q[2] q[1] q[0]
+t5 q[10] q[3] q[2] q[1] q[0]
+t4 q[10] q[3] q[2] q[0]
+t1 q[2]
+t1 q[3]
+t5 q[5] q[3] q[2] q[1] q[0]
+t5 q[9] q[3] q[2] q[1] q[0]
+t4 q[9] q[3] q[2] q[0]
+t1 q[2]
+t5 q[7] q[3] q[2] q[1] q[0]
+t1 q[1]
+t5 q[11] q[3] q[2] q[1] q[0]
+.end

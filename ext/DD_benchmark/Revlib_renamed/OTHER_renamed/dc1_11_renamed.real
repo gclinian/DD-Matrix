@@ -1,0 +1,54 @@
+# Function: dc1
+# Used Library: MCT (Gates: 39, Quantum costs: 416)
+# This file have been taken from RevLib (www.revlib.org).
+.version  1.0
+# Created by tfc2real J. Rice Jan 2009
+# Parameters for Exorcism: -n 1 -r 1 -a 0 -b 1 -c 1
+# Templates applied in both directions
+.numvars 11
+.variables q[0] q[1] q[2] q[3] q[4] q[5] q[6] q[7] q[8] q[9] q[10]
+.inputs 0 0 0 0 0 0 0 q[7] q[8] q[9] q[10]
+.outputs q[0] q[1] q[2] q[3] q[4] q[5] q[6] q[7] q[8] q[9] q[10]
+.constants 0000000----
+.garbage 1111-------
+.begin
+t1 q[10]
+t3 q[10] q[9] q[4]
+t3 q[10] q[9] q[1]
+t3 q[10] q[9] q[0]
+t1 q[7]
+t5 q[10] q[9] q[8] q[7] q[4]
+t5 q[10] q[9] q[8] q[7] q[3]
+t5 q[10] q[9] q[8] q[7] q[2]
+t5 q[10] q[9] q[8] q[7] q[1]
+t4 q[10] q[8] q[7] q[6]
+t4 q[10] q[8] q[7] q[5]
+t1 q[9]
+t4 q[10] q[9] q[8] q[3]
+t4 q[10] q[9] q[8] q[2]
+t4 q[10] q[9] q[8] q[1]
+t1 q[7]
+t5 q[10] q[9] q[8] q[7] q[4]
+t5 q[10] q[9] q[8] q[7] q[0]
+t1 q[7]
+t4 q[10] q[9] q[7] q[6]
+t4 q[10] q[9] q[7] q[4]
+t1 q[7]
+t1 q[9]
+t1 q[8]
+t3 q[10] q[8] q[6]
+t3 q[10] q[8] q[4]
+t3 q[10] q[8] q[3]
+t5 q[10] q[9] q[8] q[7] q[4]
+t5 q[10] q[9] q[8] q[7] q[2]
+t5 q[10] q[9] q[8] q[7] q[1]
+t1 q[9]
+t3 q[9] q[8] q[6]
+t3 q[9] q[8] q[4]
+t3 q[9] q[8] q[3]
+t3 q[9] q[8] q[1]
+t3 q[9] q[8] q[0]
+t1 q[7]
+t4 q[9] q[8] q[7] q[5]
+t4 q[9] q[8] q[7] q[2]
+.end
