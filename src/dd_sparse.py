@@ -509,6 +509,18 @@ def show_adj_list(adj_list: Dict[int, Dict[int, Tuple[float, float]]]):
         for child, (l_val, r_val) in edges.items():
             print(f"-> Child {child}: L={l_val:.2f}, R={r_val:.2f}")
 
+def show_matrix(matrix: List[List[complex]]):
+    """
+    Display a matrix in a readable format.
+    
+    Args:
+        matrix (List[List[complex]]): 
+            The matrix to display.
+    """
+    for row in matrix:
+        print(" | ".join(f"{val:.2f}" for val in row))
+    print("-" * 30)
+
 class WeakSimulation:
 
     root_index = 0
@@ -521,7 +533,7 @@ class WeakSimulation:
                  TYPE: str = 'numpy', 
                  num_shots: int = 1024,
                  tol: float = 1e-10,
-                 DEBUG: bool = False
+                 DEBUG: bool = True
     ):
         self.L = L
         self.R = R
@@ -597,24 +609,44 @@ class WeakSimulation:
             if j not in self.adj_list:
                 self.adj_list[j] = {}
 
-    def verify_direction(self, Mapping):
+    def check_direction(self, Mapping):
         level = {}
         for lvl, nodes in enumerate(Mapping):
             for n in nodes:
+                if n in level and level[n] != lvl:
+                    print(f"[Error] Node {n} appears in multiple levels: {level[n]} and {lvl}.")
                 level[n] = lvl
 
         bad_edges = []
+        
+        miss_node_in_mapping = False
+
         for p, children in self.adj_list.items():
+            if p not in level:
+                print(f"[Error] Parent node {p} not found in any level of the mapping.")
+                miss_node_in_mapping = True
+                continue
             for c in children:
+                if c not in level:
+                    print(f"[Error] Child node {c} not found in any level of the mapping.")
+                    miss_node_in_mapping = True
+                    continue
                 if level[p] >= level[c] and c not in Mapping[-2] and c not in Mapping[-1]:
                     bad_edges.append((p, c, level[p], level[c]))
+        
+        no_error = True
+        if miss_node_in_mapping:
+            print("[Error] Some nodes are missing in the mapping levels.")
+            no_error = False
         
         if len(bad_edges) > 0:
             print("[Error] Bad edges found in the adjacency list:")
             for p, c, lvl_p, lvl_c in bad_edges:
                 print(f"Parent {p} (level {lvl_p}) -> Child {c} (level {lvl_c})")
             print("[Error] The adjacency list does not respect the mapping levels.")
-        else:
+            no_error = False
+        
+        if no_error:
             print("[INFO] All edges in the adjacency list respect the mapping levels.")
     
     def prune_edges(self, node_index: int = root_index) -> bool:
@@ -957,11 +989,18 @@ class WeakSimulation:
 
         self.build_adj_list()
 
-        self.verify_direction(self.Mapping)
+        self.build_parent_map()
 
         if self.DEBUG:
             print("[WEAK_SIM] adj_list:")
             show_adj_list(self.adj_list)
+            print("[WEAK_SIM] Mapping:")
+            print(self.Mapping)
+            print("[WEAK_SIM] Parent Map:", self.parent_map)
+
+        self.check_direction(self.Mapping)
+
+        
 
         # if self.DEBUG: print("[WEAK_SIM] Pruning Edges...")
         
@@ -970,9 +1009,7 @@ class WeakSimulation:
         # if self.DEBUG: print("[WEAK_SIM] Edges after pruning:")
         # if self.DEBUG: show_adj_list(self.adj_list)
         
-        self.build_parent_map()
         
-        if self.DEBUG: print("[WEAK_SIM] Parent Map:", self.parent_map)
         
         self.build_reachable_set()
 
@@ -1056,6 +1093,24 @@ def weak_simulation(L, R, Mapping: List[List[int]], NUM_QUBITS: int, TYPE: str =
     weak_sim = WeakSimulation(L, R, Mapping, NUM_QUBITS, TYPE, num_shots, tol)
     return weak_sim.get_result()
 
+def check_matrix_and_mapping_consistency(L, R, Mapping: List[List[int]], NUM_QUBITS: int, TYPE: str = 'numpy'):
+    """
+    Check if the matrix and mapping are consistent.
+    This is used to ensure that the adjacency list can be built correctly.
+    """
+    print("[Checking] L:")
+    print(L)
+    print("[Checking] R:")
+    print(R)
+    Checking = WeakSimulation(L, R, Mapping, NUM_QUBITS, TYPE)
+    Checking.build_adj_list()
+    print("\n[Checking] Adjacency List:")
+    show_adj_list(Checking.adj_list)
+    print("\n[Checking] Mapping:")
+    print(Checking.Mapping)
+    print("\n[Checking] Checking direction:")
+    Checking.check_direction(Mapping)
+
 def dd_sparse(operations: List[GateOperation], MATRIX_SIZE: int, NUM_QUBITS: int, TYPE: str, MODE: str = 'strong_simulation', DEBUG = False):
     L, R, Mapping = initialization_sparse(MATRIX_SIZE, NUM_QUBITS, TYPE)
     # print("Init Mapping: ", Mapping)
@@ -1071,8 +1126,8 @@ def dd_sparse(operations: List[GateOperation], MATRIX_SIZE: int, NUM_QUBITS: int
         from cupyx.scipy import sparse
     
     for op in operations:
-        if time.time() - total_start > 60:
-            raise TimeoutError("Timeout: 60s.")
+        # if time.time() - total_start > 60:
+        #     raise TimeoutError("Timeout: 60s.")
         
         MATRIX_SIZE = L.shape[0]
         # print("MATRIX_SIZE: ", MATRIX_SIZE)
@@ -1104,61 +1159,82 @@ def dd_sparse(operations: List[GateOperation], MATRIX_SIZE: int, NUM_QUBITS: int
         
         elif isinstance(op, ControlledGate):
             MATRIX_SIZE_OLD = MATRIX_SIZE
-            for control in reversed(op.control):
-                keep = cp.zeros(MATRIX_SIZE_OLD, dtype=int)
-                keep_complement = cp.ones(MATRIX_SIZE_OLD, dtype=int)
-                keep[Mapping[control]] = 1
-                keep_complement[Mapping[control]] = 0
-                D = sparse.diags(keep, offsets=0, format='csr')
-                D_complement = sparse.diags(keep_complement, offsets=0, format='csr')
+            for control in op.control:
+                keep_U = cp.ones(MATRIX_SIZE, dtype=int)
+                keep = cp.ones(MATRIX_SIZE_OLD, dtype=int)
+                keep_U[Mapping[control]] = 0
+                keep[Mapping[control]] = 0
+                M_U = sparse.diags(keep_U, offsets=0, format='csr')
+                M = sparse.diags(keep, offsets=0, format='csr')
 
-                if control < op.target:
-                    R_masked = R @ D_complement
-                    R_U_masked = R_U[:, :MATRIX_SIZE_OLD] @ D
+                # print("M_U: ", M_U)
+                # print("M: ", M)
+                # print("L: ", L)
+                # print("L[1:, 0]: ", L[1:, 0].shape)
+                # print("L[1:, 1:]: ", L[1:, 1:].shape)
+                # print("L_U @ M_U: ", (L_U @ M_U).shape)
 
-                    L_U = sparse.bmat([[L, None],
-                        [None, L_U]], format='csr')
-                
-                    # print("Mapping: ", Mapping[control])
-                    
-                    # print("D: ", D)
-                    # print("D_complement: ", D_complement)
-                    # print("R: ", R)
-                    # print("R_U: ", R_U)
-                    # print("R_U[]: ", R_U[:, :MATRIX_SIZE_OLD])
-                    # print("R_masked: ", R_masked)
-                    # print("R_U_masked: ", R_U_masked)
+                L_U_old = L_U @ M_U
 
-                    
-                    # if TYPE == 'cupy':
-                    #     print("R Masked Type: ", type(R_masked))
-                    #     print("R U Masked Type: ", type(R_U_masked))
-                    #     print("R U Type: ", type(R_U))
-                    #     print("R Masked shape: ", R_masked.shape)
-                    #     print("R U Masked shape: ", R_U_masked.shape)
-                    #     print("R_U shape: ", R_U.shape)
-                        # print("R_masked max row/col:", R_masked.nonzero())
-                        # print("R_U_masked max row/col:", R_U_masked.nonzero())
-                        # print("R_U max row/col:", R_U.nonzero())
+                L_U = sparse.bmat([[L_U_old[:, 0:1], L_U_old[:, 1:], None, None],
+                                    [L[:, 0:1], None, None, L[:, :]]], format='csr')
 
-                    R_U = sparse.bmat([[R_masked, None],
-                        [R_U_masked, R_U]], format='csr')
-                    
-                    # print("L_U: ", L_U)
-                    # print("R_U: ", R_U)
-                else:
-                    
-                    L_U_masked = L_U @ D_complement
-                    L_masked = L[:, :MATRIX_SIZE_OLD] @ D
-                    L_U = sparse.bmat([[L_U_masked, None],
-                        [L_masked, L]], format='csr')
+                R_old = R @ M
+                # print("R_old: ", R_old)
+                # print("R_old[1:, 0]: ", R_old[1:, 0:1])
+                # print("R_old[1:, 1:]: ", R_old[1:, 1:])
 
-                    R_U = sparse.bmat([[R_U, None],
-                        [None, R]], format='csr')
-                
+                R_U = sparse.bmat([[R_U[:, 0:1], R_U[:, 1:], None, None],
+                                    [R_old[:, 0:1], None, None, R_old[:, :]]], format='csr')
+
+                # if control < op.target:
+                #     R_masked = R @ M
+                #     R_U_masked = R_U[:, :MATRIX_SIZE_OLD] @ M_U
+
+                #     L_U = sparse.bmat([[L, None],
+                #         [None, L_U]], format='csr')
+
+                #     # print("Mapping: ", Mapping[control])
+
+                #     # print("D: ", D)
+                #     # print("D_complement: ", D_complement)
+                #     # print("R: ", R)
+                #     # print("R_U: ", R_U)
+                #     # print("R_U[]: ", R_U[:, :MATRIX_SIZE_OLD])
+                #     # print("R_masked: ", R_masked)
+                #     # print("R_U_masked: ", R_U_masked)
+
+
+                #     # if TYPE == 'cupy':
+                #     #     print("R Masked Type: ", type(R_masked))
+                #     #     print("R U Masked Type: ", type(R_U_masked))
+                #     #     print("R U Type: ", type(R_U))
+                #     #     print("R Masked shape: ", R_masked.shape)
+                #     #     print("R U Masked shape: ", R_U_masked.shape)
+                #     #     print("R_U shape: ", R_U.shape)
+                #         # print("R_masked max row/col:", R_masked.nonzero())
+                #         # print("R_U_masked max row/col:", R_U_masked.nonzero())
+                #         # print("R_U max row/col:", R_U.nonzero())
+
+                #     R_U = sparse.bmat([[R_masked, None],
+                #         [R_U_masked, R_U]], format='csr')
+
+                #     # print("L_U: ", L_U)
+                #     # print("R_U: ", R_U)
+                # else:
+
+                #     L_U_masked = L_U @ D_complement
+                #     L_masked = L[:, :MATRIX_SIZE_OLD] @ D
+                #     L_U = sparse.bmat([[L_U_masked, None],
+                #         [L_masked, L]], format='csr')
+
+                #     R_U = sparse.bmat([[R_U, None],
+                #         [None, R]], format='csr')
+
                 MATRIX_SIZE += MATRIX_SIZE_OLD
 
             L, R = L_U, R_U
+            
             # print("start traverse")
             if DEBUG:
                 print("L: ", L)
@@ -1200,12 +1276,22 @@ def dd_sparse(operations: List[GateOperation], MATRIX_SIZE: int, NUM_QUBITS: int
                 for mapping in Mapping
             ]
             # print("Mapping_U: ", Mapping_U)
+            
+            # Check L, R, Mapping_U
+            print("-"*100)
+            print("[DD_SPARSE] Checking matrix and mapping consistency before mapping:")
+            check_matrix_and_mapping_consistency(L, R, Mapping_U, NUM_QUBITS, TYPE)
 
             mapping_middle = time.time()
             # print("Mapping middle time spent:", mapping_middle - mapping_start)
             traverse_list = list(traverse)
             traverse_dict = {i: idx for idx, i in enumerate(traverse_list)}
             Mapping = [[traverse_dict[node] for node in mapping_U] for mapping_U in Mapping_U]
+            
+            # Checking L, R, Mapping
+            # print("-"*100)
+            # print("[DD_SPARSE] Checking matrix and mapping consistency after mapping:")
+            # check_matrix_and_mapping_consistency(L, R, Mapping, NUM_QUBITS, TYPE)
             # print("Mapping_U after dict: ", Mapping_U)
             # Mapping = copy.deepcopy(Mapping_U)
             # print("end mapping, time spent:", time.time() - mapping_middle)  
@@ -1231,6 +1317,13 @@ def dd_sparse(operations: List[GateOperation], MATRIX_SIZE: int, NUM_QUBITS: int
 
             MATRIX_SIZE = L.shape[0]
 
+            print("-"*100)
+            print("[DD_SPARSE] Checking matrix and mapping consistency after construction:")
+            print("Gate: ", op.gate.name, op.target, "Control:", op.control)
+            check_matrix_and_mapping_consistency(L, R, Mapping, NUM_QUBITS, TYPE)
+            print("-"*100)
+            
+
         if not L.shape == R.shape:
             raise ValueError("Size of L and R not equal")
         
@@ -1240,8 +1333,8 @@ def dd_sparse(operations: List[GateOperation], MATRIX_SIZE: int, NUM_QUBITS: int
             print("R: ", R)
             print("Mapping: ", Mapping)
     
-    if DEBUG:
-        _view_operations(operations)
+    # if DEBUG:
+        # _view_operations(operations)
 
     if MODE == 'strong_simulation':
         sim_result = simulation_all_path(L, R, Mapping[-2], NUM_QUBITS, TYPE)
