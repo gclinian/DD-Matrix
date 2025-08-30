@@ -35,10 +35,15 @@ def random_operations(num_operations, num_qubits, threshold=0.5):
     return ops
 
 def _view_operations(operations: List[GateOperation]):
+    print("[Operations]")
     for op in operations:
-        print(op.gate.name, op.target)
+        if isinstance(op, SingleQubitGate):
+            print(op.gate.name, op.target)
+        elif isinstance(op, ControlledGate):
+            print(op.gate.name, op.target, "Control:", op.control)
+    print("-" * 30)
 
-def test_simulation(num_qubits, num_gates, threshold=1):
+def test_simulation(num_qubits, num_gates, threshold=0.5, operations=None):
     """
     Generate a random circuit and compare strong vs. weak simulation performance.
     """
@@ -46,9 +51,36 @@ def test_simulation(num_qubits, num_gates, threshold=1):
     init_matrix_size = 2 * num_qubits + 1
 
     # Generate operations excluding ARBITRARY
-    operations = random_operations(num_gates, num_qubits, threshold)
+    # if operations is None:
+    #     operations = random_operations(num_gates, num_qubits, threshold)
     
-    # _view_operations(operations)
+    # SDG 4
+    # H 0 Control: [3]
+    # Y 2 Control: [3]
+    # SX 1 Control: [0]
+    # TDG 4 Control: [1]
+    # H 2 Control: [0]
+    # X 4 Control: [2]
+    # Y 4 Control: [3]
+    # H 2 Control: [0]
+    # T 1
+    
+    operations = [
+                    # operation_constructor(GateType.SDG, 4), 
+                    # operation_constructor(GateType.H, 0, [3]),
+                    # operation_constructor(GateType.Y, 2, [3]),
+                    # operation_constructor(GateType.SX, 1, [0]),
+                    operation_constructor(GateType.TDG, 4, [1]),
+                    operation_constructor(GateType.H, 2, [0]),
+                    operation_constructor(GateType.X, 4, [2]),
+                    operation_constructor(GateType.Y, 4, [3]),
+                    operation_constructor(GateType.X, 2, [0]),
+                    # operation_constructor(GateType.T, 1)
+                 ]
+    
+
+    
+    _view_operations(operations)
 
     
 
@@ -71,29 +103,29 @@ def test_simulation(num_qubits, num_gates, threshold=1):
 
     
     # Strong simulation
-    strong_result = dd_sparse_numpy(
-        operations,
-        init_matrix_size,
-        num_qubits,
-        MODE='strong_simulation'
-    )
+    # strong_result = dd_sparse_numpy(
+    #     operations,
+    #     init_matrix_size,
+    #     num_qubits,
+    #     MODE='strong_simulation'
+    # )
     
     # Display results
-    print("Strong Simulation:")
-    print(f"  Time Spent: {strong_result['time_spent']:.4f} s")
-    print(f"  Avg CPU:    {strong_result.get('avg_cpu', 'N/A'):.1f}%")
-    print(f"  Peak Mem:   {strong_result.get('peak_mem', 'N/A'):.1f} MB")
-    if strong_result.get('error'):
-        print(f"  Error:      {strong_result['error']}")
+    # print("Strong Simulation:")
+    # print(f"  Time Spent: {strong_result['time_spent']:.4f} s")
+    # print(f"  Avg CPU:    {strong_result.get('avg_cpu', 'N/A'):.1f}%")
+    # print(f"  Peak Mem:   {strong_result.get('peak_mem', 'N/A'):.1f} MB")
+    # if strong_result.get('error'):
+    #     print(f"  Error:      {strong_result['error']}")
     
-    print("" + "-" * 50)
+    # print("" + "-" * 50)
 
     
 
 
 def main(num_qubits, num_gates):
     # Define test configurations: (num_qubits, num_gates)
-    configs = [(num_qubits, num_gates) for i in range(20)]
+    configs = [(num_qubits, num_gates) for i in range(1)]
 
     idx = 1
     for nq, ng in configs:
