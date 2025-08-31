@@ -12,14 +12,11 @@ from typing import Dict, List, Tuple, Optional
 import numpy as np
 import cmath
 import math
+import re
+from pathlib import Path
 
 from gates import *
 
-
-### Fixed QASM parser with proper imports
-import math, cmath, re
-from pathlib import Path
-from typing import Tuple, List
 
 _PI_ENV = {"pi": math.pi, "tau": 2*math.pi, "e": math.e}
 

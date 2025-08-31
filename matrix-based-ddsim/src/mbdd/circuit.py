@@ -12,6 +12,8 @@ from typing import Dict, List, Tuple, Optional
 import numpy as np
 import cmath
 import math
+import re
+from pathlib import Path
 
 from gates import *
 from simulator import *
@@ -240,7 +242,7 @@ def dd_sparse_old(operations: List[GateOperation], MATRIX_SIZE: int, NUM_QUBITS:
             print("Mapping: ", Mapping)
     
     if DEBUG:
-        _view_operations(operations)
+        view_operations(operations)
 
     exec_time = time.time() - START_TIME
 
@@ -682,7 +684,7 @@ def dd_sparse(operations: List[GateOperation], MATRIX_SIZE: int, NUM_QUBITS: int
             print("Mapping: ", Mapping)
     
     if DEBUG:
-        _view_operations(operations)
+        view_operations(operations)
 
     exec_time = time.time() - START_TIME
 

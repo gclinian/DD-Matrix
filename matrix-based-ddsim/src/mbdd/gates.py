@@ -12,6 +12,8 @@ from typing import Dict, List, Tuple, Optional
 import numpy as np
 import cmath
 import math
+import re
+from pathlib import Path
 
 class GateType(Enum):
     X = auto()
@@ -74,7 +76,6 @@ class ControlledGate:
     control: List[int]
 
 GateOperation = SingleQubitGate | ControlledGate
-
 
 def operation_constructor(gate: GateType, 
                           target: int, 
@@ -162,49 +163,48 @@ def operation_constructor(gate: GateType,
     else:
         return ControlledGate(gate, a, b, c, d, target, control)
 
-
-def randomizer(option: Optional[GateOperation], threshold=0) -> List[GateOperation]:
+def randomizer(num_qubits: int, num_operations: int, option: Optional[GateOperation], threshold=0) -> List[GateOperation]:
     operations: List[GateOperation] = []
 
-    for _ in range(NUM_OPERATIONS):
+    for _ in range(num_operations):
         gate = random.choice(list(GateType))
         matrix = GATE_UNITARIES[gate]
         a, b = matrix[0]
         c, d = matrix[1]
         
         if option == SingleQubitGate or random.random() < threshold:
-            target = random.randint(0, NUM_QUBITS - 1)
+            target = random.randint(0, num_qubits - 1)
             operations.append(SingleQubitGate(gate, a, b, c, d, target))
         elif option == ControlledGate or random.random() >= threshold:
-            control, target = random.sample(range(NUM_QUBITS), 2)
+            control, target = random.sample(range(num_qubits), 2)
             operations.append(ControlledGate(gate, a, b, c, d, target, [control]))
     
     return operations
 
-def initialization(L, R) -> Tuple[List[List[complex]], List[List[complex]], List[List[int]]]:    
-    if 1 < INIT_MATRIX_SIZE:
+def initialization(num_qubits: int, init_matrix_size: int, L, R) -> Tuple[List[List[complex]], List[List[complex]], List[List[int]]]:    
+    if 1 < init_matrix_size:
         L[1, 0] = 1  
 
-    for col in range(1, INIT_MATRIX_SIZE - 2):  
+    for col in range(1, init_matrix_size - 2):  
         row = col + 2
-        if row < INIT_MATRIX_SIZE:
+        if row < init_matrix_size:
             L[row, col] = 1
 
-    if 2 < INIT_MATRIX_SIZE:
+    if 2 < init_matrix_size:
         R[2, 0] = 1  
 
-    for col in range(1, INIT_MATRIX_SIZE - 2):  
+    for col in range(1, init_matrix_size - 2):  
         if col % 2 == 1:  
             row = col + 3
         else:  
             row = col + 2
-        if row < INIT_MATRIX_SIZE:
+        if row < init_matrix_size:
             R[row, col] = 1
 
     Mapping = []
     Mapping.append([0])
 
-    for i in range(1, NUM_QUBITS):
+    for i in range(1, num_qubits):
         Mapping.append([2*i - 1, 2*i])
     Mapping.append([2*i + 1])
     Mapping.append([2*i + 2])
@@ -288,6 +288,6 @@ def initialization_sparse(INIT_MATRIX_SIZE, NUM_QUBITS, TYPE):
 
     return L, R, Mapping
 
-def _view_operations(operations: List[GateOperation]):
+def view_operations(operations: List[GateOperation]):
     for op in operations:
         print(op.gate.name, op.target)

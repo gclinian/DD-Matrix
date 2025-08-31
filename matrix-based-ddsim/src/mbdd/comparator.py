@@ -12,8 +12,9 @@ from typing import Dict, List, Tuple, Optional
 import numpy as np
 import cmath
 import math
+import re
+from pathlib import Path
 
-# from typing import Dict, Tuple
 def cudaq_result_to_probs(cudaq_result: str, sample_size: int) -> Dict[str, float]:
     """
     Convert cudaQ result string to a dictionary of probabilities.
@@ -76,9 +77,7 @@ def dd_and_cudaq_is_equal(
 
     return True
 
-# import random
-
-def dd_sample_result_initializer() -> Dict[str, int]:
+def dd_sample_result_initializer(NUM_QUBITS: int) -> Dict[str, int]:
     """
     Initialize the sample result dictionary with all possible states.
     """
