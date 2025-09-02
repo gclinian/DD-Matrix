@@ -1,3 +1,6 @@
 [submodule "ext/AutoQ"]
 	path = ext/AutoQ
 	url = https://github.com/fmlab-iis/AutoQ.git
+[submodule "ext/VeriQBench"]
+	path = ext/VeriQBench
+	url = https://github.com/Veri-Q/Benchmark.git

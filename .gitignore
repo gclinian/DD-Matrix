@@ -1,2 +1,6 @@
 .venv
 node_modules
+.devcontainer
+docker
+ext/**/*.py
+result
