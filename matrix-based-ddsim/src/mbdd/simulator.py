@@ -856,32 +856,32 @@ class WeakSimulation:
             show_adj_list(self.adj_list)
 
         # if self.DEBUG: print("[WEAK_SIM] Pruning Edges...")
-        
+
         # self.prune_edges()
-        
+
         # if self.DEBUG: print("[WEAK_SIM] Edges after pruning:")
         # if self.DEBUG: show_adj_list(self.adj_list)
-        
+
         self.build_parent_map()
-        
+
         if self.DEBUG: print("[WEAK_SIM] Parent Map:", self.parent_map)
-        
+
         self.build_reachable_set()
 
         # self.check_loop()
-        
+
         if self.DEBUG: print("[WEAK_SIM] Reachable Set:", self.reachable_set)
-        
+
         # self.build_my_mapping()
 
         # self.check_two_mappings_are_equal()
-        
+
         # print("[WEAK_SIM] Checking Mapping and Parent Map consistency...")
-        # if self.check_mapping_and_parent_map(self.Mapping): 
+        # if self.check_mapping_and_parent_map(self.Mapping):
         #     print("[Info] Mapping and Parent Map are consistent.")
         # else:
         #     print("[Error] Mapping and Parent Map are NOT consistent.")
-            
+
         # print("[WEAK_SIM] Checking My Mapping and Parent Map consistency...")
         # if self.check_mapping_and_parent_map(self.my_Mapping):
         #     print("[Info] My Mapping and Parent Map are consistent.")
@@ -895,12 +895,20 @@ class WeakSimulation:
 
         # self.filter_parent_map()
         # if self.DEBUG: print("[WEAK_SIM] Filtered Parent Map:", self.parent_map)
-        
+
         if self.DEBUG: print("[WEAK_SIM] Computing Downstream Contributions...")
-        
+
         self.compute_downstream_contributions()
-        
+
         if self.DEBUG: print("[WEAK_SIM] Downstream Contributions:", self.downstream)
+
+        if self.DEBUG: print("[WEAK_SIM] Computing Upstream Contributions...")
+
+        self.compute_upstream_contributions()
+
+        # self.compute_upstream_contributions_with_mapping(self.my_Mapping)
+
+        if self.DEBUG: print("[WEAK_SIM] Upstream Contributions:", self.upstream)
 
         if self.DEBUG: print("[WEAK_SIM] Starting Simulation...")
 
@@ -908,8 +916,53 @@ class WeakSimulation:
             if time.time() - self.START_TIME > 60:
                 raise TimeoutError("Timeout during simulation: 60s.")
 
-            result = self.simulation_once_matrix()
+            result = self.simulation_once()
 
+            if result in self.sim_result:
+                self.sim_result[result] += 1
+            else:
+                self.sim_result[result] = 1
+
+        if self.DEBUG: print("[WEAK_SIM] Simulation Results:", self.sim_result)
+
+
+    def simulation_matrix(self):
+        
+        self.build_adj_list()
+
+        if self.DEBUG:
+            # self.check_direction(self.Mapping)
+            print("[WEAK_SIM] adj_list:")
+            show_adj_list(self.adj_list)
+
+        self.build_parent_map()
+
+        if self.DEBUG: print("[WEAK_SIM] Parent Map:", self.parent_map)
+
+        self.build_reachable_set()
+
+        # self.check_loop()
+
+        if self.DEBUG: print("[WEAK_SIM] Reachable Set:", self.reachable_set)
+
+        if self.DEBUG: print("[WEAK_SIM] Computing Downstream Contributions...")
+        
+        self.compute_downstream_contributions_with_stack()
+
+        if self.DEBUG: print("[WEAK_SIM] Downstream Contributions:", self.downstream)
+        
+        self.time_of_each_shots = []
+        last_time = time.time()
+        
+        for _ in range(self.num_shots):
+            if time.time() - self.START_TIME > 60:
+                raise TimeoutError("Timeout during simulation: 60s.")
+
+            current_time = time.time()
+            self.time_of_each_shots.append(current_time - last_time)
+            last_time = current_time
+
+            result = self.simulation_once_matrix()
             if result in self.sim_result:
                 self.sim_result[result] += 1
             else:

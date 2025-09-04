@@ -289,5 +289,11 @@ def initialization_sparse(INIT_MATRIX_SIZE, NUM_QUBITS, TYPE):
     return L, R, Mapping
 
 def view_operations(operations: List[GateOperation]):
+    print("[Operations]")
     for op in operations:
-        print(op.gate.name, op.target)
+        if isinstance(op, SingleQubitGate):
+            print(op.gate.name, op.target)
+        elif isinstance(op, ControlledGate):
+            print(op.gate.name, op.target, "Control:", op.control)
+    print("-" * 30)
+

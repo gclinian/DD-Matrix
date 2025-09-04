@@ -15,8 +15,8 @@ import math
 import re
 from pathlib import Path
 
-from gates import *
-from simulator import *
+from src.mbdd.gates import *
+from src.mbdd.simulator import *
 
 def dd_sparse_old(operations: List[GateOperation], MATRIX_SIZE: int, NUM_QUBITS: int, TYPE: str, START_TIME: float, MODE: str = 'strong_simulation', DEBUG = False):
     L, R, Mapping = initialization_sparse(MATRIX_SIZE, NUM_QUBITS, TYPE)

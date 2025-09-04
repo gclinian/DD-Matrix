@@ -15,7 +15,7 @@ import math
 import re
 from pathlib import Path
 
-from gates import *
+from src.mbdd.gates import *
 
 
 _PI_ENV = {"pi": math.pi, "tau": 2*math.pi, "e": math.e}
