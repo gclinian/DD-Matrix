@@ -1,0 +1,6 @@
+Metadata-Version: 2.4
+Name: mbdd
+Version: 0.0.1
+Summary: Matrix-based decision diagram simulator
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown

@@ -4,8 +4,6 @@ from src.mbdd.simulator import *
 
 import random
 import time
-from sys import argv
-
 
 def random_operations(num_operations, num_qubits, threshold=0.5):
     """
@@ -83,9 +81,6 @@ def simulate_once(num_qubits, num_gates, threshold=0.5, operations=None):
         print(f"  Error:      {strong_result['error']}")
     
     print("" + "-" * 50)
-
-    
-
 
 def test_simulation():
     # Define test configurations: (num_qubits, num_gates)
