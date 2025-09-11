@@ -289,11 +289,12 @@ class WeakSimulation:
                  START_TIME: float = 0.0,
                  num_shots: int = 1024,
                  tol: float = 1e-10,
-                 DEBUG: bool = False
+                 DEBUG: bool = True
     ):
         self.L = L
         self.R = R
         self.Mapping = Mapping
+        print("Mapping:", Mapping)
         self.NUM_QUBITS = NUM_QUBITS
         self.TYPE = TYPE
         self.START_TIME = START_TIME
@@ -366,11 +367,22 @@ class WeakSimulation:
             if j not in self.adj_list:
                 self.adj_list[j] = {}
 
-    def verify_direction(self, Mapping):
+    def check_direction(self, Mapping):
+        
+        print("[INFO] Show tht Mapping:")
+        for lvl, nodes in enumerate(Mapping):
+            print(f"Level {lvl}: Nodes {nodes}")
+        
         level = {}
         for lvl, nodes in enumerate(Mapping):
             for n in nodes:
                 level[n] = lvl
+        print("[INFO] Show level of each node:")
+        for n in range(self.num_of_nodes):
+            if n in level:
+                print(f"Node {n}: Level {level[n]}")
+            else:
+                print(f"Node {n}: Level N/A")
 
         bad_edges = []
         for p, children in self.adj_list.items():
@@ -849,18 +861,11 @@ class WeakSimulation:
 
         self.build_adj_list()
 
-        # self.verify_direction(self.Mapping)
+        self.check_direction(self.Mapping)
 
         if self.DEBUG:
             print("[WEAK_SIM] adj_list:")
             show_adj_list(self.adj_list)
-
-        # if self.DEBUG: print("[WEAK_SIM] Pruning Edges...")
-
-        # self.prune_edges()
-
-        # if self.DEBUG: print("[WEAK_SIM] Edges after pruning:")
-        # if self.DEBUG: show_adj_list(self.adj_list)
 
         self.build_parent_map()
 
@@ -868,25 +873,25 @@ class WeakSimulation:
 
         self.build_reachable_set()
 
-        # self.check_loop()
+        self.check_loop()
 
         if self.DEBUG: print("[WEAK_SIM] Reachable Set:", self.reachable_set)
 
-        # self.build_my_mapping()
+        self.build_my_mapping()
 
-        # self.check_two_mappings_are_equal()
+        self.check_two_mappings_are_equal()
 
-        # print("[WEAK_SIM] Checking Mapping and Parent Map consistency...")
-        # if self.check_mapping_and_parent_map(self.Mapping):
-        #     print("[Info] Mapping and Parent Map are consistent.")
-        # else:
-        #     print("[Error] Mapping and Parent Map are NOT consistent.")
+        print("[WEAK_SIM] Checking Mapping and Parent Map consistency...")
+        if self.check_mapping_and_parent_map(self.Mapping):
+            print("[Info] Mapping and Parent Map are consistent.")
+        else:
+            print("[Error] Mapping and Parent Map are NOT consistent.")
 
-        # print("[WEAK_SIM] Checking My Mapping and Parent Map consistency...")
-        # if self.check_mapping_and_parent_map(self.my_Mapping):
-        #     print("[Info] My Mapping and Parent Map are consistent.")
-        # else:
-        #     print("[Error] My Mapping and Parent Map are NOT consistent.")
+        print("[WEAK_SIM] Checking My Mapping and Parent Map consistency...")
+        if self.check_mapping_and_parent_map(self.my_Mapping):
+            print("[Info] My Mapping and Parent Map are consistent.")
+        else:
+            print("[Error] My Mapping and Parent Map are NOT consistent.")
 
 
         # self.filter_adj_list()
@@ -925,13 +930,12 @@ class WeakSimulation:
 
         if self.DEBUG: print("[WEAK_SIM] Simulation Results:", self.sim_result)
 
-
     def simulation_matrix(self):
         
         self.build_adj_list()
 
         if self.DEBUG:
-            # self.check_direction(self.Mapping)
+            self.check_direction(self.Mapping)
             print("[WEAK_SIM] adj_list:")
             show_adj_list(self.adj_list)
 
@@ -973,7 +977,7 @@ class WeakSimulation:
     def get_result(self) -> Dict[str, int]:
 
         if not self.sim_result:
-            self.simulation()
+            self.simulation_matrix()
         return self.sim_result
 
     def compute_probability(self):
