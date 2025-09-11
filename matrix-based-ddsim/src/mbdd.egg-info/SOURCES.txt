@@ -1,3 +1,4 @@
+README.md
 pyproject.toml
 src/mbdd/__init__.py
 src/mbdd/circuit.py

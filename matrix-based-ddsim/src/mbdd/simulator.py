@@ -289,12 +289,11 @@ class WeakSimulation:
                  START_TIME: float = 0.0,
                  num_shots: int = 1024,
                  tol: float = 1e-10,
-                 DEBUG: bool = True
+                 DEBUG: bool = False
     ):
         self.L = L
         self.R = R
         self.Mapping = Mapping
-        print("Mapping:", Mapping)
         self.NUM_QUBITS = NUM_QUBITS
         self.TYPE = TYPE
         self.START_TIME = START_TIME
