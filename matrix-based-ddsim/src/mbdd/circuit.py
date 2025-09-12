@@ -423,6 +423,7 @@ def dd_sparse(operations: List[GateOperation], MATRIX_SIZE: int, NUM_QUBITS: int
                 Mapping_U = sparse.hstack([Mapping, Mapping@S_up], format='csr')
                 # Mapping_U = sparse.hstack([Mapping, Mapping], format='csr') if op.target == NUM_QUBITS - 1 else sparse.hstack([Mapping[:, :op.target+2], Mapping[:, op.target+1:]], format='csr')
                 # print("Mapping_U.shape: ", Mapping_U.shape)
+                # print("Mapping_U: ", Mapping_U)
 
             # print("Mapping: ", Mapping)
             # print("Mapping[:op.target+1]: ", Mapping[:, :op.target+1])
@@ -497,7 +498,7 @@ def dd_sparse(operations: List[GateOperation], MATRIX_SIZE: int, NUM_QUBITS: int
                 down_target = sparse.diags(node_target[-L_down.shape[0]:], offsets=0, format='csr')
                 L_down_target = L_down @ down_target
                 R_down_target = R_down @ down_target
-                # print("L_down_target: ", L_down_target)
+                print("L_down_target: ", L_down_target)
                 # print("R_down_target: ", R_down_target)
 
                 if len(control_up) == 0:
@@ -534,6 +535,10 @@ def dd_sparse(operations: List[GateOperation], MATRIX_SIZE: int, NUM_QUBITS: int
                                     [R_U[R_down.shape[0]:, :R_down.shape[0]], R_U[R_down.shape[0]:, R_down.shape[0]:MATRIX_SIZE], R_U[R_down.shape[0]:, MATRIX_SIZE:], None],
                                     [R_down_target, None, R_down_target[:, :R_U.shape[0]-MATRIX_SIZE], R_down_all[:R_down.shape[0]]],
                                     [None, None, None, R_down_all[R_down.shape[0]:]]], format='csr')
+                    
+                print("L_U: ", L_U)
+                print("R_U: ", R_U)
+                print("Mapping_U: ", Mapping_U)
 
                     # L_U = sparse.bmat([[L_U[:L_down.shape[0], :-L_down.shape[0]], L_U[:L_down.shape[0], -L_down.shape[0]:MATRIX_SIZE], L_U[:L_down.shape[0], MATRIX_SIZE:MATRIX_SIZE+(-L_down.shape[0])], L_U[:L_down.shape[0], MATRIX_SIZE+(-L_down.shape[0]):], L_down_back],
                     #                 [L_U[L_down.shape[0]:, :-L_down.shape[0]], L_U[L_down.shape[0]:, -L_down.shape[0]:MATRIX_SIZE], L_U[L_down.shape[0]:, MATRIX_SIZE:MATRIX_SIZE+(-L_down.shape[0])], L_U[L_down.shape[0]:, MATRIX_SIZE+(-L_down.shape[0]):], None],
@@ -634,27 +639,39 @@ def dd_sparse(operations: List[GateOperation], MATRIX_SIZE: int, NUM_QUBITS: int
                 print("R: ", R)
             traverse_start = time.time()
 
-            L_B = L.astype(bool).astype(float)
-            R_B = R.astype(bool).astype(float)
+            # L_B = L.astype(bool).astype(float)
+            # R_B = R.astype(bool).astype(float)
 
-            LR = L_B + R_B
-            LR = LR.astype(bool)
-            LR = LR.astype(float)
+            # LR = L_B + R_B
+            # LR = LR.astype(bool)
+            # LR = LR.astype(float)
 
-            traverse = sparse.csr_matrix((MATRIX_SIZE, 1), dtype=bool)
-            traverse[0, 0] = True
+            LR_bool = (L != 0).maximum(R != 0)
+            LR = LR_bool.astype(float)
+
+            reach_td = sparse.csr_matrix((MATRIX_SIZE, 1), dtype=bool)
+            reach_td[0, 0] = True
             prev = -1
-            while traverse.nnz != prev:
-                prev = traverse.nnz
-                traverse = traverse.astype(float)
-                traverse = (traverse + LR @ traverse)
-                traverse = traverse.astype(bool)
+            while reach_td.nnz != prev:
+                prev = reach_td.nnz
+                reach_td = (reach_td + (LR @ reach_td)).astype(bool)
 
                 # print("Traverse: ", traverse)
 
-            traverse = traverse.astype(float)
-            traverse = set(traverse.toarray().ravel().nonzero()[0].tolist())
+            # print("reach_td: ", reach_td)
 
+            reach_bu = sparse.csr_matrix((MATRIX_SIZE, 1), dtype=bool)
+            reach_bu[Mapping.indices[Mapping.indptr[NUM_QUBITS]], 0] = True
+            reach_bu[Mapping.indices[Mapping.indptr[NUM_QUBITS + 1]], 0] = True
+            prev = -1
+            while reach_bu.nnz != prev:
+                prev = reach_bu.nnz
+                reach_bu = (reach_bu + (LR.T @ reach_bu)).astype(bool)
+            
+            # print("reach_bu: ", reach_bu)
+
+            traverse = set(reach_td.multiply(reach_bu).toarray().ravel().nonzero()[0].tolist())
+        
             # print("Traverse: ", traverse)
             # print("end traverse, time spent:", time.time() - traverse_start)
 
@@ -718,7 +735,54 @@ def dd_sparse(operations: List[GateOperation], MATRIX_SIZE: int, NUM_QUBITS: int
 
             # print("end construct, time spent:", time.time() - construct_start)
 
+            if Mapping[-2].nnz == 0:
+                print("op: ", op)
+                print("Mapping: ", Mapping)
+
             MATRIX_SIZE = L.shape[0]
+
+            # for i in range(MATRIX_SIZE-1):
+            #     for j in range(i+1, MATRIX_SIZE):
+            #         if (L.tocsc()[:, i] - L.tocsc()[:, j]).nnz == 0 and (R.tocsc()[:, i] - R.tocsc()[:, j]).nnz == 0:
+            #             print("op: ", op)
+            #             print("(i, j, size): ", (i, j, MATRIX_SIZE))
+            #             print(f"L[:, {i}]: ", L[:, i].toarray().ravel())
+            #             print(f"L[:, {j}]: ", L[:, j].toarray().ravel())
+
+            #             print(f"R[:, {i}]: ", R[:, i].toarray().ravel())
+            #             print(f"R[:, {j}]: ", R[:, j].toarray().ravel())
+
+        # print("L: ", L)
+        # print("R: ", R)
+        # print("Mapping: ", Mapping)
+        # print("1 leaf: ", Mapping.indices[Mapping.indptr[NUM_QUBITS]])
+        # print("0 leaf: ", Mapping.indices[Mapping.indptr[NUM_QUBITS+1]])
+
+        # start_reorder = time.time()
+
+        reorder_mapping = Mapping.indices.tolist()
+
+        # finish_mapping_reorder_list = time.time()
+
+        L = L[reorder_mapping, :][:, reorder_mapping]
+
+        # finish_L_reorder = time.time()
+
+        R = R[reorder_mapping, :][:, reorder_mapping]
+
+        # finish_R_reorder = time.time()
+
+        Mapping = Mapping[:, reorder_mapping]
+
+        # finish_Mapping_reorder = time.time()
+
+        # print("reorder time: ", finish_mapping_reorder_list - start_reorder, finish_L_reorder - finish_mapping_reorder_list, finish_R_reorder - finish_L_reorder, finish_Mapping_reorder - finish_R_reorder)
+
+        # print("reorder mapping: ", reorder_mapping)
+        print("After reorder L: ", L)
+        print("After reorder R: ", R)
+        print("After reorder Mapping: ", Mapping)
+
 
         if not L.shape == R.shape:
             raise ValueError("Size of L and R not equal")
@@ -730,16 +794,16 @@ def dd_sparse(operations: List[GateOperation], MATRIX_SIZE: int, NUM_QUBITS: int
             print("Mapping: ", Mapping)
 
     if DEBUG:
-        view_operations(operations)
+        _view_operations(operations)
 
     exec_time = time.time() - START_TIME
 
+    print("MATRIX_SIZE: ", MATRIX_SIZE)
     if MODE == 'strong_simulation':
         # print(MATRIX_SIZE, Mapping.getrow(-2).indices.tolist())
         sim_result, sim_time = simulation_all_path(L, R, Mapping.getrow(-2).indices.tolist(), NUM_QUBITS, TYPE, START_TIME)
     elif MODE == 'weak_simulation':
-        Mapping = [Mapping.indices[Mapping.indptr[i]:Mapping.indptr[i+1]].tolist() for i in range(Mapping.shape[0])]
-        sim_result, sim_time = weak_simulation(L, R, Mapping, NUM_QUBITS, TYPE, START_TIME, num_shots=1024)
+        sim_result, sim_time = weak_simulation(L, R, Mapping.toarray(), NUM_QUBITS, TYPE, START_TIME, num_shots=1024)
 
     # sim_result = 0
     return exec_time, sim_result, sim_time
