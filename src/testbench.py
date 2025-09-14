@@ -51,8 +51,8 @@ def test_simulation(num_qubits, num_gates, threshold=0.5, operations=None):
     init_matrix_size = 2 * num_qubits + 1
 
     # Generate operations excluding ARBITRARY
-    # if operations is None:
-    #     operations = random_operations(num_gates, num_qubits, threshold)
+    if operations is None:
+        operations = random_operations(num_gates, num_qubits, threshold)
     
     # SDG 4
     # H 0 Control: [3]
@@ -65,18 +65,18 @@ def test_simulation(num_qubits, num_gates, threshold=0.5, operations=None):
     # H 2 Control: [0]
     # T 1
     
-    operations = [
-                    # operation_constructor(GateType.SDG, 4), 
-                    # operation_constructor(GateType.H, 0, [3]),
-                    # operation_constructor(GateType.Y, 2, [3]),
-                    # operation_constructor(GateType.SX, 1, [0]),
-                    operation_constructor(GateType.TDG, 4, [1]),
-                    operation_constructor(GateType.H, 2, [0]),
-                    operation_constructor(GateType.X, 4, [2]),
-                    operation_constructor(GateType.Y, 4, [3]),
-                    operation_constructor(GateType.X, 2, [0]),
-                    # operation_constructor(GateType.T, 1)
-                 ]
+    # operations = [
+    #                 # operation_constructor(GateType.SDG, 4), 
+    #                 # operation_constructor(GateType.H, 0, [3]),
+    #                 # operation_constructor(GateType.Y, 2, [3]),
+    #                 # operation_constructor(GateType.SX, 1, [0]),
+    #                 operation_constructor(GateType.TDG, 4, [1]),
+    #                 operation_constructor(GateType.H, 2, [0]),
+    #                 operation_constructor(GateType.X, 4, [2]),
+    #                 operation_constructor(GateType.Y, 4, [3]),
+    #                 operation_constructor(GateType.X, 2, [0]),
+    #                 # operation_constructor(GateType.T, 1)
+    #              ]
     
 
     

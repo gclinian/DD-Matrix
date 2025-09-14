@@ -873,6 +873,42 @@ class WeakSimulation:
 
         return contributions
 
+    def compute_downstream_contributions_with_stack(self):
+        
+        from collections import deque
+
+        S = deque()
+        S.append(self.root_index)
+
+        while S:
+            node_index = S.pop()
+
+            if node_index in self.one_terminals:
+                self.downstream[node_index] = 1.0
+                continue
+
+            if node_index in self.zero_terminals:
+                self.downstream[node_index] = 0.0
+                continue
+
+            if node_index in self.downstream:
+                continue
+
+            all_children_computed = True
+            contributions = 0.0
+
+            for child_node, (l_val, r_val) in self.adj_list[node_index].items():
+                if child_node not in self.downstream:
+                    all_children_computed = False
+                    S.append(child_node)
+                else:
+                    contributions += (l_val + r_val) * self.downstream[child_node]
+            
+            if all_children_computed:
+                self.downstream[node_index] = contributions
+            else:
+                S.append(node_index)
+
     def compute_upstream_contributions(self):
 
         from collections import deque
@@ -985,6 +1021,93 @@ class WeakSimulation:
 
         return result
 
+    def simulation_once_matrix(self) -> str:
+        """
+        Matrix-based weak simulation following the given pseudocode:
+          U <- e_root
+          L2 = |L|^2, R2 = |R|^2
+          d  = downstream as a vector (diagonal of D)
+          For each qubit:
+            U0 = L2 @ U
+            U1 = R2 @ U
+            prob0 = d^T U0
+            prob1 = d^T U1
+            sample x in {0,1} with probs {prob0/prev_prob, prob1/prev_prob}
+            if x == 0: U <- U0; prev_prob <- prob0
+            else:      U <- U1; prev_prob <- prob1
+        """
+        cp = self.cp
+        sparse = self.sparse
+        import random
+
+        # --- Lazy precompute |L|^2 and |R|^2 (cached) ---
+        if not hasattr(self, "_L2") or self._L2 is None:
+            L2 = self.L.copy().tocsr()
+            R2 = self.R.copy().tocsr()
+            # elementwise |.|^2 on data
+            L2.data = cp.abs(L2.data) ** 2
+            R2.data = cp.abs(R2.data) ** 2
+            # ensure real dtype for safety
+            if getattr(L2.data, "dtype", None) is not None and L2.data.dtype.kind != 'f':
+                L2.data = L2.data.astype(cp.float64)
+                L2 = L2.astype(cp.float64)
+            if getattr(R2.data, "dtype", None) is not None and R2.data.dtype.kind != 'f':
+                R2.data = R2.data.astype(cp.float64)
+                R2 = R2.astype(cp.float64)
+            self._L2 = L2
+            self._R2 = R2
+        else:
+            L2 = self._L2
+            R2 = self._R2
+
+        # --- Lazy precompute downstream vector d (cached) ---
+        if not hasattr(self, "_dvec") or self._dvec is None:
+            # make sure downstream is available
+            if not self.downstream:
+                self.compute_downstream_contributions()
+            dvec = cp.zeros(self.num_of_nodes, dtype=cp.float64)
+            keys = list(self.downstream.keys())
+            vals = [self.downstream[k] for k in keys]
+            if len(keys) > 0:
+                dvec[cp.asarray(keys, dtype=cp.int64)] = cp.asarray(vals, dtype=cp.float64)
+            self._dvec = dvec
+        else:
+            dvec = self._dvec
+
+        # --- Initialize U at root ---
+        U = cp.zeros(self.num_of_nodes, dtype=cp.float64)
+        U[self.root_index] = 1.0
+
+        # robust init (equals 1 if graph is normalized)
+        prev_prob = float(cp.dot(self._dvec, U))
+
+        bits = []
+        for _ in range(self.NUM_QUBITS):
+            U0 = L2.dot(U)
+            U1 = R2.dot(U)
+
+            prob0 = float(cp.dot(self._dvec, U0))
+            prob1 = float(cp.dot(self._dvec, U1))
+
+            denom = max(prev_prob, self.tol)
+            p0 = prob0 / denom
+            # numerical guards
+            if p0 < 0.0:
+                p0 = 0.0
+            elif p0 > 1.0:
+                p0 = 1.0
+
+            if random.random() < p0:
+                bits.append("0")
+                U = U0
+                prev_prob = prob0
+            else:
+                bits.append("1")
+                U = U1
+                prev_prob = prob1
+
+        return "".join(bits)
+
     def simulation(self):
 
         self.build_adj_list()
@@ -1043,23 +1166,23 @@ class WeakSimulation:
         
         if self.DEBUG: print("[WEAK_SIM] Computing Downstream Contributions...")
         
-        self.compute_downstream_contributions()
+        self.compute_downstream_contributions_with_stack()
         
         if self.DEBUG: print("[WEAK_SIM] Downstream Contributions:", self.downstream)
         
-        if self.DEBUG: print("[WEAK_SIM] Computing Upstream Contributions...")
+        # if self.DEBUG: print("[WEAK_SIM] Computing Upstream Contributions...")
         
-        self.compute_upstream_contributions()
+        # self.compute_upstream_contributions()
 
         # self.compute_upstream_contributions_with_mapping(self.my_Mapping)
         
-        if self.DEBUG: print("[WEAK_SIM] Upstream Contributions:", self.upstream)
+        # if self.DEBUG: print("[WEAK_SIM] Upstream Contributions:", self.upstream)
 
         if self.DEBUG: print("[WEAK_SIM] Starting Simulation...")
 
         for _ in range(self.num_shots):
 
-            result = self.simulation_once()
+            result = self.simulation_once_matrix()
 
             if result in self.sim_result:
                 self.sim_result[result] += 1
