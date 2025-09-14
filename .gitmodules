@@ -4,3 +4,6 @@
 [submodule "ext/VeriQBench"]
 	path = ext/VeriQBench
 	url = https://github.com/Veri-Q/Benchmark.git
+[submodule "ext/Benchmarks"]
+	path = ext/Benchmarks
+	url = git@github.com:maxyhwu/DD-Matrix-Benchmark.git

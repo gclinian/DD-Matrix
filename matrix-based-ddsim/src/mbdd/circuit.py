@@ -306,6 +306,7 @@ def dd_sparse(operations: List[GateOperation], MATRIX_SIZE: int, NUM_QUBITS: int
             # print("Mapping: ", Mapping)
 
         elif isinstance(op, ControlledGate):
+            control_start = time.time()
             MATRIX_SIZE_OLD = MATRIX_SIZE
 
             if not isinstance(op.control, list):
@@ -423,6 +424,7 @@ def dd_sparse(operations: List[GateOperation], MATRIX_SIZE: int, NUM_QUBITS: int
                 Mapping_U = sparse.hstack([Mapping, Mapping@S_up], format='csr')
                 # Mapping_U = sparse.hstack([Mapping, Mapping], format='csr') if op.target == NUM_QUBITS - 1 else sparse.hstack([Mapping[:, :op.target+2], Mapping[:, op.target+1:]], format='csr')
                 # print("Mapping_U.shape: ", Mapping_U.shape)
+                # print("Mapping_U: ", Mapping_U)
 
             # print("Mapping: ", Mapping)
             # print("Mapping[:op.target+1]: ", Mapping[:, :op.target+1])
@@ -440,7 +442,7 @@ def dd_sparse(operations: List[GateOperation], MATRIX_SIZE: int, NUM_QUBITS: int
                 # print("R_down: ", R_down)
 
 
-                down = sparse.diags(node_down[-L_down.shape[0]:], offsets=0, format='csr')
+                down = sparse.diags(node_down[:L_down.shape[0]], offsets=0, format='csr')
 
                 node_control_down_except_last = cp.asarray(Mapping[control_down[:-1]].sum(axis=0)).ravel()
                 node_control_down_only_last = cp.asarray(Mapping[control_down[-1]].sum(axis=0)).ravel()
@@ -450,7 +452,7 @@ def dd_sparse(operations: List[GateOperation], MATRIX_SIZE: int, NUM_QUBITS: int
                 # print("node_control_down_except_last: ", node_control_down_except_last)
                 # print("node_control_down_only_last: ", node_control_down_only_last)
 
-                down_last_control = sparse.diags(node_control_down_only_last[-L_down.shape[0]:], offsets=0, format='csr')
+                down_last_control = sparse.diags(node_control_down_only_last[:L_down.shape[0]], offsets=0, format='csr')
                 L_down_last_control = L_down @ down_last_control
 
                 R_down_last_control = sparse.csr_matrix(R_down.shape, dtype=cp.complex128)
@@ -459,7 +461,7 @@ def dd_sparse(operations: List[GateOperation], MATRIX_SIZE: int, NUM_QUBITS: int
                 L_down = L_down @ down
                 R_down = R_down @ down
 
-                down_other_control_neg = sparse.diags((1-node_control_down_except_last[-L_down.shape[0]:]), offsets=0, format='csr')
+                down_other_control_neg = sparse.diags((1-node_control_down_except_last[:L_down.shape[0]]), offsets=0, format='csr')
                 L_down_all = L_down @ down_other_control_neg
                 R_down_all = R_down.copy()
 
@@ -478,7 +480,7 @@ def dd_sparse(operations: List[GateOperation], MATRIX_SIZE: int, NUM_QUBITS: int
                 Mapping_U = sparse.hstack([Mapping_U, Mapping@S_down], format='csr')
 
                 if len(control_down) > 1:
-                    L_down_control_go_left = L_down @ sparse.diags(node_control_down_except_last[-L_down.shape[0]:], offsets=0, format='csr')
+                    L_down_control_go_left = L_down @ sparse.diags(node_control_down_except_last[:L_down.shape[0]], offsets=0, format='csr')
                     # print("L_down_control_go_left: ", L_down_control_go_left)
                     # print("L_down_all.shape: ", L_down_all.shape)
                     # print("L_down.shape: ", L_down.shape)
@@ -494,9 +496,12 @@ def dd_sparse(operations: List[GateOperation], MATRIX_SIZE: int, NUM_QUBITS: int
                     R_down_last_control = sparse.hstack([R_down_last_control, R_down_last_control_real], format='csr')
                     Mapping_U = sparse.hstack([Mapping_U, Mapping@S_down], format='csr')
 
-                down_target = sparse.diags(node_target[-L_down.shape[0]:], offsets=0, format='csr')
+                down_target = sparse.diags(node_target[:L_down.shape[0]], offsets=0, format='csr')
                 L_down_target = L_down @ down_target
                 R_down_target = R_down @ down_target
+                # print("node_target: ", node_target)
+                # print("L_down: ", L_down)
+                # print("down_target: ", down_target)
                 # print("L_down_target: ", L_down_target)
                 # print("R_down_target: ", R_down_target)
 
@@ -524,7 +529,7 @@ def dd_sparse(operations: List[GateOperation], MATRIX_SIZE: int, NUM_QUBITS: int
                     # print("L_down_target: ", L_down_target)
                     # print("L_down_all: ", L_down_all)
                     
-                    # This might be wrong. Double check.
+                    # Should be correct now...FINALLY
 
                     L_U = sparse.bmat([[L_U[:L_down.shape[0], :L_down.shape[0]], L_U[:L_down.shape[0], L_down.shape[0]:MATRIX_SIZE], L_U[:L_down.shape[0], MATRIX_SIZE:], L_down_last_control],
                                     [L_U[L_down.shape[0]:, :L_down.shape[0]], L_U[L_down.shape[0]:, L_down.shape[0]:MATRIX_SIZE], L_U[L_down.shape[0]:, MATRIX_SIZE:], None],
@@ -534,6 +539,10 @@ def dd_sparse(operations: List[GateOperation], MATRIX_SIZE: int, NUM_QUBITS: int
                                     [R_U[R_down.shape[0]:, :R_down.shape[0]], R_U[R_down.shape[0]:, R_down.shape[0]:MATRIX_SIZE], R_U[R_down.shape[0]:, MATRIX_SIZE:], None],
                                     [R_down_target, None, R_down_target[:, :R_U.shape[0]-MATRIX_SIZE], R_down_all[:R_down.shape[0]]],
                                     [None, None, None, R_down_all[R_down.shape[0]:]]], format='csr')
+                    
+                # print("L_U: ", L_U)
+                # print("R_U: ", R_U)
+                # print("Mapping_U: ", Mapping_U)
 
                     # L_U = sparse.bmat([[L_U[:L_down.shape[0], :-L_down.shape[0]], L_U[:L_down.shape[0], -L_down.shape[0]:MATRIX_SIZE], L_U[:L_down.shape[0], MATRIX_SIZE:MATRIX_SIZE+(-L_down.shape[0])], L_U[:L_down.shape[0], MATRIX_SIZE+(-L_down.shape[0]):], L_down_back],
                     #                 [L_U[L_down.shape[0]:, :-L_down.shape[0]], L_U[L_down.shape[0]:, -L_down.shape[0]:MATRIX_SIZE], L_U[L_down.shape[0]:, MATRIX_SIZE:MATRIX_SIZE+(-L_down.shape[0])], L_U[L_down.shape[0]:, MATRIX_SIZE+(-L_down.shape[0]):], None],
@@ -632,31 +641,44 @@ def dd_sparse(operations: List[GateOperation], MATRIX_SIZE: int, NUM_QUBITS: int
             if DEBUG:
                 print("L: ", L)
                 print("R: ", R)
+            print("end control, time spent:", time.time() - control_start)
             traverse_start = time.time()
 
-            L_B = L.astype(bool).astype(float)
-            R_B = R.astype(bool).astype(float)
+            # L_B = L.astype(bool).astype(float)
+            # R_B = R.astype(bool).astype(float)
 
-            LR = L_B + R_B
-            LR = LR.astype(bool)
-            LR = LR.astype(float)
+            # LR = L_B + R_B
+            # LR = LR.astype(bool)
+            # LR = LR.astype(float)
 
-            traverse = sparse.csr_matrix((MATRIX_SIZE, 1), dtype=bool)
-            traverse[0, 0] = True
+            LR_bool = (L != 0).maximum(R != 0)
+            LR = LR_bool.astype(float)
+
+            reach_td = sparse.csr_matrix((MATRIX_SIZE, 1), dtype=bool)
+            reach_td[0, 0] = True
             prev = -1
-            while traverse.nnz != prev:
-                prev = traverse.nnz
-                traverse = traverse.astype(float)
-                traverse = (traverse + LR @ traverse)
-                traverse = traverse.astype(bool)
+            while reach_td.nnz != prev:
+                prev = reach_td.nnz
+                reach_td = (reach_td + (LR @ reach_td)).astype(bool)
 
                 # print("Traverse: ", traverse)
 
-            traverse = traverse.astype(float)
-            traverse = set(traverse.toarray().ravel().nonzero()[0].tolist())
+            # print("reach_td: ", reach_td)
 
+            reach_bu = sparse.csr_matrix((MATRIX_SIZE, 1), dtype=bool)
+            reach_bu[Mapping.indices[Mapping.indptr[NUM_QUBITS]], 0] = True
+            reach_bu[Mapping.indices[Mapping.indptr[NUM_QUBITS + 1]], 0] = True
+            prev = -1
+            while reach_bu.nnz != prev:
+                prev = reach_bu.nnz
+                reach_bu = (reach_bu + (LR.T @ reach_bu)).astype(bool)
+            
+            # print("reach_bu: ", reach_bu)
+
+            traverse = set(reach_td.multiply(reach_bu).toarray().ravel().nonzero()[0].tolist())
+        
             # print("Traverse: ", traverse)
-            # print("end traverse, time spent:", time.time() - traverse_start)
+            print("end traverse, time spent:", time.time() - traverse_start)
 
             # print("start mapping")
             mapping_start = time.time()
@@ -708,17 +730,54 @@ def dd_sparse(operations: List[GateOperation], MATRIX_SIZE: int, NUM_QUBITS: int
 
             # print("End Mapping.shape: ", Mapping.shape)
 
-            m = Mapping.shape[1]
-            Mapping = Mapping.tocsc()[:, cp.arange(m, dtype=cp.int32)].tocsr()
+            # m = Mapping.shape[1]
+            # Mapping = Mapping.tocsc()[:, cp.arange(m, dtype=cp.int32)].tocsr()
 
             # print("op: ", op)
             # print("End Mapping: ", Mapping)
             # print("L: ", L)
             # print("R: ", R)
 
-            # print("end construct, time spent:", time.time() - construct_start)
+            print("end construct, time spent:", time.time() - construct_start)
+
+            if Mapping[-2].nnz == 0:
+                print("op: ", op)
+                print("Mapping: ", Mapping)
 
             MATRIX_SIZE = L.shape[0]
+
+            # for i in range(MATRIX_SIZE-1):
+            #     for j in range(i+1, MATRIX_SIZE):
+            #         if (L.tocsc()[:, i] - L.tocsc()[:, j]).nnz == 0 and (R.tocsc()[:, i] - R.tocsc()[:, j]).nnz == 0:
+            #             print("op: ", op)
+            #             print("(i, j, size): ", (i, j, MATRIX_SIZE))
+            #             print(f"L[:, {i}]: ", L[:, i].toarray().ravel())
+            #             print(f"L[:, {j}]: ", L[:, j].toarray().ravel())
+
+            #             print(f"R[:, {i}]: ", R[:, i].toarray().ravel())
+            #             print(f"R[:, {j}]: ", R[:, j].toarray().ravel())
+
+            reorder_start = time.time()
+
+            reorder_mapping = Mapping.indices.tolist()
+
+            L = L[reorder_mapping, :][:, reorder_mapping]
+
+            R = R[reorder_mapping, :][:, reorder_mapping]
+
+            Mapping = Mapping[:, reorder_mapping]
+
+            print("end reorder, time spent:", time.time() - reorder_start)
+
+        # finish_Mapping_reorder = time.time()
+
+        # print("reorder time: ", finish_mapping_reorder_list - start_reorder, finish_L_reorder - finish_mapping_reorder_list, finish_R_reorder - finish_L_reorder, finish_Mapping_reorder - finish_R_reorder)
+
+        # print("reorder mapping: ", reorder_mapping)
+        # print("After reorder L: ", L)
+        # print("After reorder R: ", R)
+        # print("After reorder Mapping: ", Mapping)
+
 
         if not L.shape == R.shape:
             raise ValueError("Size of L and R not equal")
@@ -730,19 +789,19 @@ def dd_sparse(operations: List[GateOperation], MATRIX_SIZE: int, NUM_QUBITS: int
             print("Mapping: ", Mapping)
 
     if DEBUG:
-        view_operations(operations)
+        _view_operations(operations)
 
     exec_time = time.time() - START_TIME
 
+    # print("MATRIX_SIZE: ", MATRIX_SIZE)
     if MODE == 'strong_simulation':
         # print(MATRIX_SIZE, Mapping.getrow(-2).indices.tolist())
         sim_result, sim_time = simulation_all_path(L, R, Mapping.getrow(-2).indices.tolist(), NUM_QUBITS, TYPE, START_TIME)
     elif MODE == 'weak_simulation':
-        Mapping = [Mapping.indices[Mapping.indptr[i]:Mapping.indptr[i+1]].tolist() for i in range(Mapping.shape[0])]
-        sim_result, sim_time = weak_simulation(L, R, Mapping, NUM_QUBITS, TYPE, START_TIME, num_shots=1024)
+        sim_result, sim_time = weak_simulation(L, R, Mapping.toarray(), NUM_QUBITS, TYPE, START_TIME, num_shots=1024)
 
     # sim_result = 0
-    return exec_time, sim_result, sim_time
+    return exec_time, sim_result, sim_time, MATRIX_SIZE
 
 def dd_sparse_numpy(operations: List[GateOperation], INIT_MATRIX_SIZE: int, NUM_QUBITS: int, MODE: str = 'strong_simulation', DEBUG: bool = False):
 
@@ -774,7 +833,7 @@ def dd_sparse_numpy(operations: List[GateOperation], INIT_MATRIX_SIZE: int, NUM_
         # for i in range(1024):
             # if time.time() - np_start > 60:
             #     raise TimeoutError("Simulation Timeout: 60s.")
-        exec_time, sim_result, sim_time = dd_sparse(operations, INIT_MATRIX_SIZE, NUM_QUBITS, TYPE='numpy', START_TIME=np_start, MODE=MODE)
+        exec_time, sim_result, sim_time, matrix_size = dd_sparse(operations, INIT_MATRIX_SIZE, NUM_QUBITS, TYPE='numpy', START_TIME=np_start, MODE=MODE)
 
         np_end = time.time()
 
@@ -784,6 +843,7 @@ def dd_sparse_numpy(operations: List[GateOperation], INIT_MATRIX_SIZE: int, NUM_
         result_dict["exec_time"] = exec_time
         result_dict["sim_time"] = sim_time
         result_dict["time_spent"] = np_end - np_start
+        result_dict["matrix_size"] = matrix_size
         result_dict["error"] = None
 
         if DEBUG: print(sim_result)
@@ -800,6 +860,7 @@ def dd_sparse_numpy(operations: List[GateOperation], INIT_MATRIX_SIZE: int, NUM_
         result_dict["error"] = str(e)
         result_dict["exec_time"] = None
         result_dict["sim_time"] = None
+        result_dict['matrix_size'] = None
         traceback.print_exc()
 
     # print("Time spent: ", np_end - np_start)
@@ -861,7 +922,7 @@ def dd_sparse_cupy(operations: List[GateOperation], INIT_MATRIX_SIZE: int, NUM_Q
         # for i in range(1024):
         #     if time.time() - cp_start > 60:
         #         raise TimeoutError("Simulation Timeout: 60s.")
-        exec_time, sim_result, sim_time = dd_sparse(operations, INIT_MATRIX_SIZE, NUM_QUBITS, TYPE='cupy', START_TIME=cp_start, MODE=MODE, DEBUG=DEBUG)
+        exec_time, sim_result, sim_time, matrix_size = dd_sparse(operations, INIT_MATRIX_SIZE, NUM_QUBITS, TYPE='cupy', START_TIME=cp_start, MODE=MODE, DEBUG=DEBUG)
 
         cp_end = time.time()
         stop_event.set()
@@ -879,6 +940,7 @@ def dd_sparse_cupy(operations: List[GateOperation], INIT_MATRIX_SIZE: int, NUM_Q
         result_dict["exec_time"] = exec_time
         result_dict["sim_time"] = sim_time
         result_dict["time_spent"] = cp_end - cp_start
+        result_dict["matrix_size"] = matrix_size
         result_dict["error"] = None
 
     except Exception as e:
@@ -890,6 +952,7 @@ def dd_sparse_cupy(operations: List[GateOperation], INIT_MATRIX_SIZE: int, NUM_Q
         result_dict["error"] = str(e)
         result_dict["exec_time"] = None
         result_dict["sim_time"] = None
+        result_dict['matrix_size'] = None
         traceback.print_exc()
 
 
@@ -917,21 +980,26 @@ def cudaq_sv(path: str, NUM_QUBITS, MODE: str = 'nvidia'):
         indent = "    "
 
         for line in lines:
-            line = line.strip()
+            line = line.strip().rstrip(';')
             if not line or line.startswith("OPENQASM") or line.startswith("include") or line.startswith("//"):
                 continue
-
-            if match := re.match(r"qreg\s+(\w+)\[(\d+)\];", line):
+            ## 
+            if match := re.match(r"qreg\s+(\w+)\[(\d+)\]", line):
                 regname, size = match.groups()
                 cudaq_lines.append(f"{indent}{regname} = cudaq.qvector({size})\n")
                 continue
 
-            if match := re.match(r"([a-zA-Z_][a-zA-Z0-9_]*)\s+(.*);", line):
-                gate_raw, arglist = match.groups()
+            if match := re.match(r'([a-zA-Z_][\w]*)(\([^)]*\))?\s+(.*)', line):
+                gate_raw, param_group, arglist = match.groups()
                 args = [arg.strip() for arg in arglist.split(",") if arg.strip()]
 
                 ctrl_count = len(gate_raw) - len(gate_raw.lstrip("c"))
                 base_gate = gate_raw[ctrl_count:]
+
+                params = []
+                if param_group:                       # "(theta,phi,…)" → list[str]
+                    params = [p.strip() for p in param_group[1:-1].split(',')]
+                    params = [_eval_expr(p) for p in params]
 
                 if ctrl_count > 0:
                     controls = args[:ctrl_count]
@@ -945,23 +1013,144 @@ def cudaq_sv(path: str, NUM_QUBITS, MODE: str = 'nvidia'):
                     else:
                         ctrl_tuple = ", ".join(controls)
                         lambda_call = f"{base_gate}({', '.join(targets)})"
-                        cudaq_lines.append(
-                            f"{indent}cudaq.control(({ctrl_tuple}), lambda: {lambda_call})\n"
-                        )
+                        # cudaq_lines.append(
+                        #     f"{indent}cudaq.control(({ctrl_tuple}), lambda: {lambda_call})\n"
+                        # )
                 else:
                     if base_gate in method_style_gates:
-                        cudaq_lines.append(f"{indent}{base_gate}({', '.join(args)})\n")
-                    else:
-                        cudaq_lines.append(f"{indent}# TODO: Unrecognized gate: {base_gate}({', '.join(args)})\n")
+                        if not params:
+                            cudaq_lines.append(f"{indent}{base_gate}({', '.join(args)})\n")
+                        else:
+                            if base_gate in {"rx", "ry", "rz"} and len(params) == 1:
+                                cudaq_lines.append(f"{indent}{base_gate}({params[0]}, {', '.join(args)})\n")
+                            
 
-        cudaq_lines.append(f"\ncounts = cudaq.sample(circuit, shots_count={1024})\nprint(counts)")
+                    else:
+                        if base_gate in {"u1", "u2", "u3"}:
+                                if base_gate == "u1" and len(params) == 1:
+                                    cudaq_lines.append(f"{indent}u3(0,0,{params[0]}, {', '.join(args)})\n")
+                                if base_gate == "u2" and len(params) == 2:
+                                    cudaq_lines.append(f"{indent}u3({_eval_expr(str(math.pi/2))},{params[0]},{params[1]}, {', '.join(args)})\n")
+                                if base_gate == "u3" and len(params) == 3:
+                                    cudaq_lines.append(f"{indent}u3({params[0]},{params[1]},{params[2]}, {', '.join(args)})\n")
+                        if base_gate == "p" and len(params) == 1:
+                            cudaq_lines.append(f"{indent}rz({params[0]}, {', '.join(args)})\n")
+                        if base_gate == "sdg":
+                            cudaq_lines.append(f"{indent}rz({_eval_expr(str(math.pi/-2))}, {', '.join(args)})\n")
+                        if base_gate == "tdg":
+                            cudaq_lines.append(f"{indent}rz({_eval_expr(str(math.pi/-4))}, {', '.join(args)})\n")
+                        if base_gate == "sx":
+                            cudaq_lines.append(f"{indent}rx({_eval_expr(str(math.pi/2))}, {', '.join(args)})\n")
+                        if base_gate == "sxdg":
+                            cudaq_lines.append(f"{indent}rx({_eval_expr(str(math.pi/-2))}, {', '.join(args)})\n")
+
+        cudaq_lines.append(f"\n{indent}counts = cudaq.sample(circuit, shots_count={1024})\n{indent}print(counts)")
         with open(output_py_file, 'w') as f:
             f.writelines(cudaq_lines)
 
-    
-    input_path = Path(path + 'circuit.qasm')
-    output_path = Path(path + 'circuit_cudaq_new.py')
-    parse_qasm_to_cudaq_python(input_path, output_path)
+    def parse_real_to_cudaq(real_file: str, output_py_file: str):
+        with open(real_file, 'r') as f:
+            lines = f.readlines()
+
+            cudaq_lines = [
+                "import cudaq\n",
+                f"cudaq.set_target('nvidia')\n",
+                "@cudaq.kernel\n",
+                "def circuit():\n"
+            ]
+            indent = "    "
+
+            for line in lines:
+                line = line.strip()
+                if not line or line.startswith("#") or line.startswith(".version") or line.startswith(".begin"):
+                    continue
+                ## 
+                if line.startswith(".numvars"):
+                    num_qubits = int(line.split()[1])
+                    cudaq_lines.append(f"{indent}q = cudaq.qvector({num_qubits})\n")
+                    continue
+                # Handle .constants with only one argument (e.g., ".constants 0----")
+                if line.startswith(".constants") and len(line.split()) == 2 :
+                    # Example: .constants 0----
+                    value = line.split()[1]
+                    # For .constants like "0----", apply X to each qubit where char is '1'
+                    for idx, bit in enumerate(value):
+                        if bit == '1':
+                            cudaq_lines.append(f"{indent}x(q[{idx}])\n")
+                if line.startswith(".garbage"):
+                        # .garbage 1111-  (1: don't measure, -: measure)
+                        garbage_bits = line.split()[1]
+                        measure_list = []
+                        for idx, bit in enumerate(garbage_bits):
+                            if bit == '-':
+                                measure_list.append(idx)
+                        # Optionally, you can use measure_list later for measurement logic
+
+                # Parse gate lines, e.g., "t2 q[2] q[1]"
+                if m := re.match(r'^([a-zA-Z\+]+)(\d*)\s+((?:q\[\d+\]\s*)+)', line):
+                    
+                    gate_type= m.group(1)
+                    num_qubits = int(m.group(2)) if m.group(2) else 1
+                    qubits = m.group(3).split()
+                    if len(qubits) != num_qubits:
+                        raise ValueError(f"Gate {gate_type_with_num} expects {num_qubits} qubits, got {len(qubits)}")
+                    target = qubits[-1]
+                    controls = qubits[:-1]
+                    ctrl_list = f"[{', '.join(controls)}]"
+                    # Map gate type to cudaq syntax
+                    if gate_type.lower() == 't' :
+                        #multi-control X
+                        if len(controls) > 0:
+                            cudaq_lines.append(f"{indent}x.ctrl({ctrl_list}, {target})\n")
+                        else:
+                            cudaq_lines.append(f"{indent}x({target})\n")
+                    elif gate_type.lower() == 'f' and len(controls) > 0:
+                        if len(controls) > 0:
+                            cudaq_lines.append(f"{indent}x.ctrl({target}, {controls[-1]})\n")
+                            cudaq_lines.append(f"{indent}x.ctrl({ctrl_list}, {target})\n")
+                            cudaq_lines.append(f"{indent}x.ctrl({target}, {controls[-1]})\n")
+                        else:
+                            cudaq_lines.append(f"{indent}x({target})\n")
+                    elif gate_type.lower() == 'v':
+                        if len(controls) > 0:
+                            cudaq_lines.append(f"{indent}cudaq.ctrl({ctrl_list}, lambda: cudaq.rx({_eval_expr("pi/2")}, {target}))\n")
+                        else:
+                            cudaq_lines.append(f"{indent}cudaq.rx({_eval_expr("pi/2")}, {target})\n")
+                    elif gate_type.lower() == 'p':
+                        if len(controls) > 0:
+                            cudaq_lines.append(f"{indent}x.ctrl({ctrl_list}, {target})\n")
+                            new_controls = controls[:-1]
+                            new_ctrl_list = f"[{', '.join(new_controls)}]" 
+                            cudaq_lines.append(f"{indent}x.ctrl({new_ctrl_list}, {controls[-1]})\n")
+                        else:
+                            continue
+                    elif gate_type.lower() == 'pi':
+                        if len(controls) > 0:
+                            new_controls = controls[:-1]
+                            new_ctrl_list = f"[{', '.join(new_controls)}]" 
+                            cudaq_lines.append(f"{indent}x.ctrl({new_ctrl_list}, {controls[-1]})\n")
+                            cudaq_lines.append(f"{indent}x.ctrl({ctrl_list}, {target})\n")
+                        else:
+                            continue
+                    elif gate_type.lower() == 'v+':
+                        if len(controls) > 0:
+                            cudaq_lines.append(f"{indent}cudaq.ctrl({ctrl_list}, lambda: cudaq.rx({_eval_expr("-pi/2")}, {target}))\n")
+                        else:
+                            cudaq_lines.append(f"{indent}cudaq.rx({_eval_expr("-pi/2")}, {target})\n")
+                    # Add more gate mappings as needed
+                    else:
+                        continue
+
+        cudaq_lines.append(f"\n{indent}counts = cudaq.sample(circuit, shots_count={1024})\n{indent}print(counts)")
+        with open(output_py_file, 'w') as f:
+            f.writelines(cudaq_lines)
+
+    path_parent = str(Path(path).parent)
+
+    # print(path_parent)
+    output_path = Path(path_parent + '/' + str(path.stem) + '.py')
+    print("output path: ", output_path)
+    parse_qasm_to_cudaq_python(path, output_path)
 
     try:
         nvmlInit()
@@ -977,7 +1166,7 @@ def cudaq_sv(path: str, NUM_QUBITS, MODE: str = 'nvidia'):
         mem_usages = []
         gpu_usages = []
         gpu_mems = []
-        
+
         while not stop_event.is_set():
             cpu = process.cpu_percent(interval=None)
             mem = process.memory_info().rss / 1024**2  # MB
@@ -995,7 +1184,7 @@ def cudaq_sv(path: str, NUM_QUBITS, MODE: str = 'nvidia'):
                     gpu_mems.append(0)
 
             time.sleep(interval)
-        
+
         result_dict["avg_cpu"] = sum(cpu_usages)/len(cpu_usages) if cpu_usages else 0.0
         result_dict["peak_mem"] = max(mem_usages) if mem_usages else 0.0
 
@@ -1006,44 +1195,50 @@ def cudaq_sv(path: str, NUM_QUBITS, MODE: str = 'nvidia'):
             result_dict["avg_gpu"] = 0.0
             result_dict["peak_gpu_mem"] = 0.0
 
+    import subprocess
+
+    result_dict = {}
+    stop_event = threading.Event()
+    monitor_thread = threading.Thread(target=monitor_usage, args=(stop_event, result_dict))
+    timeout_secs = 60
+
+    cudaq_start = time.time()
+    monitor_thread.start()
+
     try:
-        result_dict = {}
-        stop_event = threading.Event()
-        monitor_thread = threading.Thread(target=monitor_usage, args=(stop_event, result_dict))
-
-        cudaq_start = time.time()
-        monitor_thread.start()
-
-        import subprocess
-        # %run -i {output_path}
         result = subprocess.run(
             ['python', output_path],
             capture_output=True,
             text=True,
-            check=True  # raises CalledProcessError if returncode != 0
+            check=True,
+            timeout=timeout_secs
         )
-        # print("STDOUT: ", result.stdout)
-        # for comparison function
+        cudaq_end = time.time()
         result_dict['sim_result'] = result.stdout
+        stop_event.set()
+        monitor_thread.join()
+        result_dict["time_spent"] = cudaq_end - cudaq_start
+        result_dict['error'] = None
 
+    except subprocess.TimeoutExpired as e:
         cudaq_end = time.time()
         stop_event.set()
         monitor_thread.join()
         result_dict["time_spent"] = cudaq_end - cudaq_start
-        result_dict["error"] = None
-        # most_probable_result = counts.most_probable()
-        # probability = counts.probability(most_probable_result)
-        # print("Most probable result: " + most_probable_result)
-        # print("Measured with probability " + str(probability), end='\n\n')
-        # print("time spent: ", cudaq_end - cudaq_start)
-    # except Exception as e:
+        result_dict['sim_result'] = str(e.stderr)
+        result_dict['error'] = f"Timeout after {timeout_secs}s"
+        print(f"Timed out after {timeout_secs}s")
+
+
     except subprocess.CalledProcessError as e:
         cudaq_end = time.time()
         stop_event.set()
         monitor_thread.join()
-        # print("Error in cudaq computation:", e)
         result_dict["time_spent"] = cudaq_end - cudaq_start
-        result_dict["error"] = str(e.stderr)
+        result_dict['sim_result'] = str(e.stderr)
+        result_dict['error'] = str(e.stderr)
         print("Error output:\n", e.stderr)
         traceback.print_exc()
+
+
     return result_dict
