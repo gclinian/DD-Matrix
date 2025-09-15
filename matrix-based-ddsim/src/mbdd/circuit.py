@@ -16,6 +16,7 @@ import re
 from pathlib import Path
 
 from mbdd.gates import *
+from mbdd.parser import *
 from mbdd.simulator import *
 
 def dd_sparse_old(operations: List[GateOperation], MATRIX_SIZE: int, NUM_QUBITS: int, TYPE: str, START_TIME: float, MODE: str = 'strong_simulation', DEBUG = False):
@@ -306,7 +307,7 @@ def dd_sparse(operations: List[GateOperation], MATRIX_SIZE: int, NUM_QUBITS: int
             # print("Mapping: ", Mapping)
 
         elif isinstance(op, ControlledGate):
-            control_start = time.time()
+            # control_start = time.time()
             MATRIX_SIZE_OLD = MATRIX_SIZE
 
             if not isinstance(op.control, list):
@@ -539,101 +540,7 @@ def dd_sparse(operations: List[GateOperation], MATRIX_SIZE: int, NUM_QUBITS: int
                                     [R_U[R_down.shape[0]:, :R_down.shape[0]], R_U[R_down.shape[0]:, R_down.shape[0]:MATRIX_SIZE], R_U[R_down.shape[0]:, MATRIX_SIZE:], None],
                                     [R_down_target, None, R_down_target[:, :R_U.shape[0]-MATRIX_SIZE], R_down_all[:R_down.shape[0]]],
                                     [None, None, None, R_down_all[R_down.shape[0]:]]], format='csr')
-                    
-                # print("L_U: ", L_U)
-                # print("R_U: ", R_U)
-                # print("Mapping_U: ", Mapping_U)
-
-                    # L_U = sparse.bmat([[L_U[:L_down.shape[0], :-L_down.shape[0]], L_U[:L_down.shape[0], -L_down.shape[0]:MATRIX_SIZE], L_U[:L_down.shape[0], MATRIX_SIZE:MATRIX_SIZE+(-L_down.shape[0])], L_U[:L_down.shape[0], MATRIX_SIZE+(-L_down.shape[0]):], L_down_back],
-                    #                 [L_U[L_down.shape[0]:, :-L_down.shape[0]], L_U[L_down.shape[0]:, -L_down.shape[0]:MATRIX_SIZE], L_U[L_down.shape[0]:, MATRIX_SIZE:MATRIX_SIZE+(-L_down.shape[0])], L_U[L_down.shape[0]:, MATRIX_SIZE+(-L_down.shape[0]):], None],
-                    #                 [None, L_down_target, None, L_down_target, L_down_all[:L_down.shape[0]]],
-                    #                 [None, None, None, None, L_down_all[L_down.shape[0]:]]], format='csr')
-
-                    # R_U = sparse.bmat([[R_U[:R_down.shape[0], :-R_down.shape[0]], R_U[:R_down.shape[0], -R_down.shape[0]:MATRIX_SIZE], R_U[:R_down.shape[0], MATRIX_SIZE:MATRIX_SIZE+(-R_down.shape[0])], R_U[:R_down.shape[0], MATRIX_SIZE+(-R_down.shape[0]):], R_down_back],
-                    #                 [R_U[R_down.shape[0]:, :-R_down.shape[0]], R_U[R_down.shape[0]:, -R_down.shape[0]:MATRIX_SIZE], R_U[R_down.shape[0]:, MATRIX_SIZE:MATRIX_SIZE+(-R_down.shape[0])], R_U[R_down.shape[0]:, MATRIX_SIZE+(-R_down.shape[0]):], None],
-                    #                 [None, R_down_target, None, R_down_target, R_down_all[:R_down.shape[0]]],
-                    #                 [None, None, None, None, R_down_all[R_down.shape[0]:]]], format='csr')
-
-            if False:
-                for control in control_down:
-                    keep_U = cp.ones(MATRIX_SIZE, dtype=int)
-                    keep = cp.ones(MATRIX_SIZE_OLD, dtype=int)
-                    map_control = Mapping.getrow(control).indices.tolist()
-                    keep_U[map_control] = 0
-                    keep[map_control] = 0
-                    M_U = sparse.diags(keep_U, offsets=0, format='csr')
-                    M = sparse.diags(keep, offsets=0, format='csr')
-
-                    # print("M_U: ", M_U)
-                    # print("M: ", M)
-                    # print("L: ", L)
-                    # print("L[1:, 0]: ", L[1:, 0].shape)
-                    # print("L[1:, 1:]: ", L[1:, 1:].shape)
-                    # print("L_U @ M_U: ", (L_U @ M_U).shape)
-
-                    L_U_old = L_U @ M_U
-
-                    L_U = sparse.bmat([[L_U_old[:, 0:1], L_U_old[:, 1:], None, None],
-                                    [L[:, 0:1], None, None, L[:, :]]], format='csr')
-
-                    R_old = R @ M
-                    # print("R_old: ", R_old)
-                    # print("R_old[1:, 0]: ", R_old[1:, 0:1])
-                    # print("R_old[1:, 1:]: ", R_old[1:, 1:])
-
-                    R_U = sparse.bmat([[R_U[:, 0:1], R_U[:, 1:], None, None],
-                                    [R_old[:, 0:1], None, None, R_old[:, :]]], format='csr')
-
-
-
-            if False:
-                if control < op.target:
-                    R_masked = R @ M
-                    R_U_masked = R_U[:, :MATRIX_SIZE_OLD] @ M_U
-
-                    L_U = sparse.bmat([[L, None],
-                        [None, L_U]], format='csr')
-
-                    # print("Mapping: ", Mapping[control])
-
-                    # print("D: ", D)
-                    # print("D_complement: ", D_complement)
-                    # print("R: ", R)
-                    # print("R_U: ", R_U)
-                    # print("R_U[]: ", R_U[:, :MATRIX_SIZE_OLD])
-                    # print("R_masked: ", R_masked)
-                    # print("R_U_masked: ", R_U_masked)
-
-
-                    # if TYPE == 'cupy':
-                    #     print("R Masked Type: ", type(R_masked))
-                    #     print("R U Masked Type: ", type(R_U_masked))
-                    #     print("R U Type: ", type(R_U))
-                    #     print("R Masked shape: ", R_masked.shape)
-                    #     print("R U Masked shape: ", R_U_masked.shape)
-                    #     print("R_U shape: ", R_U.shape)
-                        # print("R_masked max row/col:", R_masked.nonzero())
-                        # print("R_U_masked max row/col:", R_U_masked.nonzero())
-                        # print("R_U max row/col:", R_U.nonzero())
-
-                    R_U = sparse.bmat([[R_masked, None],
-                        [R_U_masked, R_U]], format='csr')
-
-                    # print("L_U: ", L_U)
-                    # print("R_U: ", R_U)
-                else:
-
-                    L_U_masked = L_U @ D_complement
-                    L_masked = L[:, :MATRIX_SIZE_OLD] @ D
-                    L_U = sparse.bmat([[L_U_masked, None],
-                        [L_masked, L]], format='csr')
-
-                    R_U = sparse.bmat([[R_U, None],
-                        [None, R]], format='csr')
-
-                    MATRIX_SIZE += MATRIX_SIZE_OLD
-                    Mapping_U = sparse.hstack([Mapping_U, Mapping], format='csr')
-
+            
             L, R, Mapping, MATRIX_SIZE = L_U, R_U, Mapping_U, L_U.shape[0]
             # print("L: ", L)
             # print("R: ", R)
@@ -641,8 +548,8 @@ def dd_sparse(operations: List[GateOperation], MATRIX_SIZE: int, NUM_QUBITS: int
             if DEBUG:
                 print("L: ", L)
                 print("R: ", R)
-            print("end control, time spent:", time.time() - control_start)
-            traverse_start = time.time()
+            # print("end control, time spent:", time.time() - control_start)
+            # traverse_start = time.time()
 
             # L_B = L.astype(bool).astype(float)
             # R_B = R.astype(bool).astype(float)
@@ -654,6 +561,9 @@ def dd_sparse(operations: List[GateOperation], MATRIX_SIZE: int, NUM_QUBITS: int
             LR_bool = (L != 0).maximum(R != 0)
             LR = LR_bool.astype(float)
 
+            # traverse_time_one = time.time()
+            # print("traverse_time_one time spent:", traverse_time_one - traverse_start)
+
             reach_td = sparse.csr_matrix((MATRIX_SIZE, 1), dtype=bool)
             reach_td[0, 0] = True
             prev = -1
@@ -664,6 +574,8 @@ def dd_sparse(operations: List[GateOperation], MATRIX_SIZE: int, NUM_QUBITS: int
                 # print("Traverse: ", traverse)
 
             # print("reach_td: ", reach_td)
+            # traverse_time_two = time.time()
+            # print("traverse_time_two time spent:", traverse_time_two - traverse_time_one)
 
             reach_bu = sparse.csr_matrix((MATRIX_SIZE, 1), dtype=bool)
             reach_bu[Mapping.indices[Mapping.indptr[NUM_QUBITS]], 0] = True
@@ -674,14 +586,19 @@ def dd_sparse(operations: List[GateOperation], MATRIX_SIZE: int, NUM_QUBITS: int
                 reach_bu = (reach_bu + (LR.T @ reach_bu)).astype(bool)
             
             # print("reach_bu: ", reach_bu)
+            # traverse_time_three = time.time()
+            # print("traverse_time_three time spent:", traverse_time_three - traverse_time_two)
 
             traverse = set(reach_td.multiply(reach_bu).toarray().ravel().nonzero()[0].tolist())
         
             # print("Traverse: ", traverse)
-            print("end traverse, time spent:", time.time() - traverse_start)
+            # traverse_end = time.time()
+
+            # print("traverse_time_four spent:", traverse_end - traverse_time_three)
+            # print("end traverse, time spent:", traverse_end - traverse_start)
 
             # print("start mapping")
-            mapping_start = time.time()
+            # mapping_start = time.time()
             # Mapping_U = [
             #     sorted(
             #         [n + MATRIX_SIZE_OLD * i
@@ -694,7 +611,7 @@ def dd_sparse(operations: List[GateOperation], MATRIX_SIZE: int, NUM_QUBITS: int
             # ]
             # print("Mapping_U: ", Mapping_U)
 
-            mapping_middle = time.time()
+            # mapping_middle = time.time()
             # print("Mapping middle time spent:", mapping_middle - mapping_start)
             traverse_list = list(traverse)
             traverse_dict = {i: idx for idx, i in enumerate(traverse_list)}
@@ -704,7 +621,7 @@ def dd_sparse(operations: List[GateOperation], MATRIX_SIZE: int, NUM_QUBITS: int
             # print("end mapping, time spent:", time.time() - mapping_middle)
 
             # print("start construct")
-            construct_start = time.time()
+            # construct_start = time.time()
 
 
             not_traverse = cp.array(list(set(range(MATRIX_SIZE)) - traverse))
@@ -738,7 +655,7 @@ def dd_sparse(operations: List[GateOperation], MATRIX_SIZE: int, NUM_QUBITS: int
             # print("L: ", L)
             # print("R: ", R)
 
-            print("end construct, time spent:", time.time() - construct_start)
+            # print("end construct, time spent:", time.time() - construct_start)
 
             if Mapping[-2].nnz == 0:
                 print("op: ", op)
@@ -746,18 +663,7 @@ def dd_sparse(operations: List[GateOperation], MATRIX_SIZE: int, NUM_QUBITS: int
 
             MATRIX_SIZE = L.shape[0]
 
-            # for i in range(MATRIX_SIZE-1):
-            #     for j in range(i+1, MATRIX_SIZE):
-            #         if (L.tocsc()[:, i] - L.tocsc()[:, j]).nnz == 0 and (R.tocsc()[:, i] - R.tocsc()[:, j]).nnz == 0:
-            #             print("op: ", op)
-            #             print("(i, j, size): ", (i, j, MATRIX_SIZE))
-            #             print(f"L[:, {i}]: ", L[:, i].toarray().ravel())
-            #             print(f"L[:, {j}]: ", L[:, j].toarray().ravel())
-
-            #             print(f"R[:, {i}]: ", R[:, i].toarray().ravel())
-            #             print(f"R[:, {j}]: ", R[:, j].toarray().ravel())
-
-            reorder_start = time.time()
+            # reorder_start = time.time()
 
             reorder_mapping = Mapping.indices.tolist()
 
@@ -767,7 +673,19 @@ def dd_sparse(operations: List[GateOperation], MATRIX_SIZE: int, NUM_QUBITS: int
 
             Mapping = Mapping[:, reorder_mapping]
 
-            print("end reorder, time spent:", time.time() - reorder_start)
+            # print("end reorder, time spent:", time.time() - reorder_start)
+
+            # for i in range(MATRIX_SIZE-3):
+            #     for j in range(i+1, MATRIX_SIZE-2):
+            #         if (L.tocsc()[:, i] - L.tocsc()[:, j]).nnz == 0 and (R.tocsc()[:, i] - R.tocsc()[:, j]).nnz == 0:
+            #             print("op: ", op)
+            #             print("(i, j, size): ", (i, j, MATRIX_SIZE))
+            #             print(f"L[:, {i}]: ", L[:, i].toarray().ravel())
+            #             print(f"L[:, {j}]: ", L[:, j].toarray().ravel())
+
+            #             print(f"R[:, {i}]: ", R[:, i].toarray().ravel())
+            #             print(f"R[:, {j}]: ", R[:, j].toarray().ravel())
+
 
         # finish_Mapping_reorder = time.time()
 
@@ -1150,6 +1068,7 @@ def cudaq_sv(path: str, NUM_QUBITS, MODE: str = 'nvidia'):
     # print(path_parent)
     output_path = Path(path_parent + '/' + str(path.stem) + '.py')
     print("output path: ", output_path)
+    #TODO
     parse_qasm_to_cudaq_python(path, output_path)
 
     try:
