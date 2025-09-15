@@ -297,6 +297,7 @@ class WeakSimulation:
         self.NUM_QUBITS = NUM_QUBITS
         self.TYPE = TYPE
         self.START_TIME = START_TIME
+        # self.num_shots = max(2**NUM_QUBITS, 1024)
         self.num_shots = num_shots
         self.tol = tol
         self.DEBUG = DEBUG

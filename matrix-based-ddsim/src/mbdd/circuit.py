@@ -878,8 +878,8 @@ def dd_sparse_cupy(operations: List[GateOperation], INIT_MATRIX_SIZE: int, NUM_Q
     return result_dict
 
 def cudaq_sv(path: str, NUM_QUBITS, MODE: str = 'nvidia'):
-    # NUM_QUBITS = min(NUM_QUBITS, 16)
-    NUM_QUBITS = 0
+    # num_shots = 2**max(NUM_QUBITS, 10)
+    num_shots = 1024
     # output_path = Path(path + 'circuit_cudaq.py')
     # !npx q-convert -i {input_path} -s qasm -o {output_path} -d cudaq
 
@@ -962,7 +962,7 @@ def cudaq_sv(path: str, NUM_QUBITS, MODE: str = 'nvidia'):
                         if base_gate == "sxdg":
                             cudaq_lines.append(f"{indent}rx({_eval_expr(str(math.pi/-2))}, {', '.join(args)})\n")
 
-        cudaq_lines.append(f"\n{indent}counts = cudaq.sample(circuit, shots_count={1024})\n{indent}print(counts)")
+        cudaq_lines.append(f"\ncounts = cudaq.sample(circuit, shots_count={num_shots})\nprint(counts)")
         with open(output_py_file, 'w') as f:
             f.writelines(cudaq_lines)
 
@@ -1059,14 +1059,14 @@ def cudaq_sv(path: str, NUM_QUBITS, MODE: str = 'nvidia'):
                     else:
                         continue
 
-        cudaq_lines.append(f"\n{indent}counts = cudaq.sample(circuit, shots_count={1024})\n{indent}print(counts)")
+        cudaq_lines.append(f"\ncounts = cudaq.sample(circuit, shots_count={num_shots})\nprint(counts)")
         with open(output_py_file, 'w') as f:
             f.writelines(cudaq_lines)
 
     path_parent = str(Path(path).parent)
 
     # print(path_parent)
-    output_path = Path(path_parent + '/' + str(path.stem) + '.py')
+    output_path = Path(path_parent + '/' + str(path.stem) + '_' + str(MODE) + '.py')
     print("output path: ", output_path)
     #TODO
     parse_qasm_to_cudaq_python(path, output_path)
