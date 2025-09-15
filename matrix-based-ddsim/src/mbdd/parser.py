@@ -20,23 +20,23 @@ from mbdd.gates import *
 
 _PI_ENV = {"pi": math.pi, "tau": 2*math.pi, "e": math.e}
 
-def _eval_expr(expr: str) -> float:
+def eval_expr(expr: str) -> float:
     """安全地把 'pi/2', '3*pi/4', '1.570796'… 轉成 float"""
     return eval(expr, {"__builtins__": None}, _PI_ENV)
 
-def _rot_x(theta: float):
+def rot_x(theta: float):
     c, s = math.cos(theta/2), math.sin(theta/2)
     return [[c, -1j*s], [-1j*s, c]]
 
-def _rot_y(theta: float):
+def rot_y(theta: float):
     c, s = math.cos(theta/2), math.sin(theta/2)
     return [[c, -s], [s, c]]
 
-def _rot_z(theta: float):
+def rot_z(theta: float):
     return [[cmath.exp(-1j*theta/2), 0],
             [0, cmath.exp(1j*theta/2)]]
 
-def _phase(lambda_):
+def phase(lambda_):
     return [[1, 0], [0, cmath.exp(1j*lambda_)]]
 
 def extract_qubit_index(s: str) -> int:
@@ -210,7 +210,7 @@ def parse_qasm(path: Path) -> Tuple[int, List[GateOperation]]:
             params = []
             if param_group:                       # "(theta,phi,…)" → list[str]
                 params = [p.strip() for p in param_group[1:-1].split(',')]
-                params = [_eval_expr(p) for p in params]
+                params = [eval_expr(p) for p in params]
 
             # ── 驗證 qubit 數 ──
             if len(qubit_strs) != (num_ctrl + 1):
@@ -230,10 +230,10 @@ def parse_qasm(path: Path) -> Tuple[int, List[GateOperation]]:
             # 2. 參數化單量子閘（rx/ry/rz/p/u1/u2/u3）
             if base_token in {'rx','ry','rz','p','phase','u1','u2','u3'}:
                 # 生成對應矩陣
-                if base_token == 'rx': M = _rot_x(params[0])
-                elif base_token == 'ry': M = _rot_y(params[0])
-                elif base_token == 'rz': M = _rot_z(params[0])
-                elif base_token in ['p','phase','u1']: M = _phase(params[0])
+                if base_token == 'rx': M = rot_x(params[0])
+                elif base_token == 'ry': M = rot_y(params[0])
+                elif base_token == 'rz': M = rot_z(params[0])
+                elif base_token in ['p','phase','u1']: M = phase(params[0])
                 elif base_token == 'u2':
                     phi, lam = params
                     # U2 gate: RZ(phi) · RY(π/2) · RZ(lam)
@@ -257,10 +257,10 @@ def parse_qasm(path: Path) -> Tuple[int, List[GateOperation]]:
             # 3. 控制版（cp/crx/cry/crz）
             if base_token in {'p','rx','ry','rz'} and num_ctrl >= 1:
                 # 重用上面矩陣生成功能
-                if base_token == 'p': M = _phase(params[0])
-                elif base_token == 'rx': M = _rot_x(params[0])
-                elif base_token == 'ry': M = _rot_y(params[0])
-                elif base_token == 'rz': M = _rot_z(params[0])
+                if base_token == 'p': M = phase(params[0])
+                elif base_token == 'rx': M = rot_x(params[0])
+                elif base_token == 'ry': M = rot_y(params[0])
+                elif base_token == 'rz': M = rot_z(params[0])
                 gate_list.append(
                     operation_constructor(GateType.ARBITRARY, target,
                                           ctrls, mode='matrix', matrix=M)

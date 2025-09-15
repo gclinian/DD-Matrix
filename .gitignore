@@ -4,3 +4,5 @@ node_modules
 docker
 ext/**/*.py
 result
+__pycache__/
+*.pyc
