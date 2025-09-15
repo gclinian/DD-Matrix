@@ -917,7 +917,7 @@ def cudaq_sv(path: str, NUM_QUBITS, MODE: str = 'nvidia'):
                 params = []
                 if param_group:                       # "(theta,phi,…)" → list[str]
                     params = [p.strip() for p in param_group[1:-1].split(',')]
-                    params = [_eval_expr(p) for p in params]
+                    params = [eval_expr(p) for p in params]
 
                 if ctrl_count > 0:
                     controls = args[:ctrl_count]
@@ -948,19 +948,19 @@ def cudaq_sv(path: str, NUM_QUBITS, MODE: str = 'nvidia'):
                                 if base_gate == "u1" and len(params) == 1:
                                     cudaq_lines.append(f"{indent}u3(0,0,{params[0]}, {', '.join(args)})\n")
                                 if base_gate == "u2" and len(params) == 2:
-                                    cudaq_lines.append(f"{indent}u3({_eval_expr(str(math.pi/2))},{params[0]},{params[1]}, {', '.join(args)})\n")
+                                    cudaq_lines.append(f"{indent}u3({eval_expr(str(math.pi/2))},{params[0]},{params[1]}, {', '.join(args)})\n")
                                 if base_gate == "u3" and len(params) == 3:
                                     cudaq_lines.append(f"{indent}u3({params[0]},{params[1]},{params[2]}, {', '.join(args)})\n")
                         if base_gate == "p" and len(params) == 1:
                             cudaq_lines.append(f"{indent}rz({params[0]}, {', '.join(args)})\n")
                         if base_gate == "sdg":
-                            cudaq_lines.append(f"{indent}rz({_eval_expr(str(math.pi/-2))}, {', '.join(args)})\n")
+                            cudaq_lines.append(f"{indent}rz({eval_expr(str(math.pi/-2))}, {', '.join(args)})\n")
                         if base_gate == "tdg":
-                            cudaq_lines.append(f"{indent}rz({_eval_expr(str(math.pi/-4))}, {', '.join(args)})\n")
+                            cudaq_lines.append(f"{indent}rz({eval_expr(str(math.pi/-4))}, {', '.join(args)})\n")
                         if base_gate == "sx":
-                            cudaq_lines.append(f"{indent}rx({_eval_expr(str(math.pi/2))}, {', '.join(args)})\n")
+                            cudaq_lines.append(f"{indent}rx({eval_expr(str(math.pi/2))}, {', '.join(args)})\n")
                         if base_gate == "sxdg":
-                            cudaq_lines.append(f"{indent}rx({_eval_expr(str(math.pi/-2))}, {', '.join(args)})\n")
+                            cudaq_lines.append(f"{indent}rx({eval_expr(str(math.pi/-2))}, {', '.join(args)})\n")
 
         cudaq_lines.append(f"\ncounts = cudaq.sample(circuit, shots_count={num_shots})\nprint(counts)")
         with open(output_py_file, 'w') as f:
@@ -1031,9 +1031,9 @@ def cudaq_sv(path: str, NUM_QUBITS, MODE: str = 'nvidia'):
                             cudaq_lines.append(f"{indent}x({target})\n")
                     elif gate_type.lower() == 'v':
                         if len(controls) > 0:
-                            cudaq_lines.append(f"{indent}cudaq.ctrl({ctrl_list}, lambda: cudaq.rx({_eval_expr("pi/2")}, {target}))\n")
+                            cudaq_lines.append(f"{indent}cudaq.ctrl({ctrl_list}, lambda: cudaq.rx({eval_expr("pi/2")}, {target}))\n")
                         else:
-                            cudaq_lines.append(f"{indent}cudaq.rx({_eval_expr("pi/2")}, {target})\n")
+                            cudaq_lines.append(f"{indent}cudaq.rx({eval_expr("pi/2")}, {target})\n")
                     elif gate_type.lower() == 'p':
                         if len(controls) > 0:
                             cudaq_lines.append(f"{indent}x.ctrl({ctrl_list}, {target})\n")
@@ -1052,9 +1052,9 @@ def cudaq_sv(path: str, NUM_QUBITS, MODE: str = 'nvidia'):
                             continue
                     elif gate_type.lower() == 'v+':
                         if len(controls) > 0:
-                            cudaq_lines.append(f"{indent}cudaq.ctrl({ctrl_list}, lambda: cudaq.rx({_eval_expr("-pi/2")}, {target}))\n")
+                            cudaq_lines.append(f"{indent}cudaq.ctrl({ctrl_list}, lambda: cudaq.rx({eval_expr("-pi/2")}, {target}))\n")
                         else:
-                            cudaq_lines.append(f"{indent}cudaq.rx({_eval_expr("-pi/2")}, {target})\n")
+                            cudaq_lines.append(f"{indent}cudaq.rx({eval_expr("-pi/2")}, {target})\n")
                     # Add more gate mappings as needed
                     else:
                         continue
