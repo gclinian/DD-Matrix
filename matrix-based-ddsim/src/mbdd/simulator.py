@@ -511,6 +511,14 @@ class WeakSimGraphAlgo:
             if j not in self.adj_list:
                 self.adj_list[j] = {}
 
+    def compute_L2_and_R2(self):
+        # elementwise |.|^2 on L and R
+        self.L2 = self.L.copy().tocsr()
+        self.R2 = self.R.copy().tocsr()
+        self.L2.data = self.cp.abs(self.L2.data) ** 2
+        self.R2.data = self.cp.abs(self.R2.data) ** 2
+        self.W2 = self.L2 + self.R2
+
     def prune_edges(self, node_index: int = 0) -> bool:
 
         if self.DEBUG:
@@ -604,6 +612,20 @@ class WeakSimGraphAlgo:
             else:
                 S.append(node_index)
 
+    def compute_downstream_contributions_with_matrix(self):
+        
+        self.down_vec = self.cp.zeros(self.num_of_nodes, dtype=self.cp.float64)
+        
+        down_tmp = self.cp.zeros(self.num_of_nodes, dtype=self.cp.float64)
+        
+        for node in self.one_terminals:
+            self.down_vec[node] = 1.0
+            down_tmp[node] = 1.0
+        
+        for level in range(self.NUM_QUBITS - 1, -1, -1):
+            down_tmp = self.W2.T @ down_tmp
+            self.down_vec += down_tmp
+    
     def compute_upstream_contributions(self):
 
         from collections import deque
@@ -730,6 +752,11 @@ class WeakSimulation(WeakSimChecker, WeakSimGraphAlgo):
         assert(self.NUM_QUBITS + 2 == len(self.Mapping))
         self.my_Mapping = [[] for _ in range(self.NUM_QUBITS + 2)]
 
+        self.down_vec = None
+        self.L2 = None # L2 = elementwise |L|^2
+        self.R2 = None # R2 = elementwise |R|^2
+        self.W2 = None # W2 = L2 + R2
+
     def simulation_once(self) -> str:
 
         result = ""
@@ -775,70 +802,36 @@ class WeakSimulation(WeakSimChecker, WeakSimGraphAlgo):
     def simulation_once_matrix(self) -> str:
         """
         Matrix-based weak simulation following the given pseudocode:
-          U <- e_root
+          u <- e_root
           L2 = |L|^2, R2 = |R|^2
-          d  = downstream as a vector (diagonal of D)
+          d  = downstream as a vector
           For each qubit:
-            U0 = L2 @ U
-            U1 = R2 @ U
-            prob0 = d^T U0
-            prob1 = d^T U1
+            u0 = L2 @ u
+            u1 = R2 @ u
+            prob0 = d^T u0
+            prob1 = d^T u1
             sample x in {0,1} with probs {prob0/prev_prob, prob1/prev_prob}
-            if x == 0: U <- U0; prev_prob <- prob0
-            else:      U <- U1; prev_prob <- prob1
+            if x == 0: u <- u0; prev_prob <- prob0
+            else:      u <- u1; prev_prob <- prob1
         """
         cp = self.cp
         sparse = self.sparse
         import random
 
-        # --- Lazy precompute |L|^2 and |R|^2 (cached) ---
-        if not hasattr(self, "_L2") or self._L2 is None:
-            L2 = self.L.copy().tocsr()
-            R2 = self.R.copy().tocsr()
-            # elementwise |.|^2 on data
-            L2.data = cp.abs(L2.data) ** 2
-            R2.data = cp.abs(R2.data) ** 2
-            # ensure real dtype for safety
-            if getattr(L2.data, "dtype", None) is not None and L2.data.dtype.kind != 'f':
-                L2.data = L2.data.astype(cp.float64)
-                L2 = L2.astype(cp.float64)
-            if getattr(R2.data, "dtype", None) is not None and R2.data.dtype.kind != 'f':
-                R2.data = R2.data.astype(cp.float64)
-                R2 = R2.astype(cp.float64)
-            self._L2 = L2
-            self._R2 = R2
-        else:
-            L2 = self._L2
-            R2 = self._R2
-
-        # --- Lazy precompute downstream vector d (cached) ---
-        if not hasattr(self, "_dvec") or self._dvec is None:
-            # make sure downstream is available
-            if not self.downstream:
-                self.compute_downstream_contributions()
-            dvec = cp.zeros(self.num_of_nodes, dtype=cp.float64)
-            keys = list(self.downstream.keys())
-            vals = [self.downstream[k] for k in keys]
-            if len(keys) > 0:
-                dvec[cp.asarray(keys, dtype=cp.int64)] = cp.asarray(vals, dtype=cp.float64)
-            self._dvec = dvec
-        else:
-            dvec = self._dvec
-
         # --- Initialize U at root ---
-        U = cp.zeros(self.num_of_nodes, dtype=cp.float64)
-        U[self.root_index] = 1.0
+        up_vec = cp.zeros(self.num_of_nodes, dtype=cp.float64)
+        up_vec[self.root_index] = 1.0
 
         # robust init (equals 1 if graph is normalized)
-        prev_prob = float(cp.dot(self._dvec, U))
+        prev_prob = float(cp.dot(self.down_vec, up_vec))
 
         bits = []
         for _ in range(self.NUM_QUBITS):
-            U0 = L2.dot(U)
-            U1 = R2.dot(U)
+            up_vec0 = self.L2.dot(up_vec)
+            up_vec1 = self.R2.dot(up_vec)
 
-            prob0 = float(cp.dot(self._dvec, U0))
-            prob1 = float(cp.dot(self._dvec, U1))
+            prob0 = float(cp.dot(self.down_vec, up_vec0))
+            prob1 = float(cp.dot(self.down_vec, up_vec1))
 
             denom = max(prev_prob, self.tol)
             p0 = prob0 / denom
@@ -850,17 +843,19 @@ class WeakSimulation(WeakSimChecker, WeakSimGraphAlgo):
 
             if random.random() < p0:
                 bits.append("0")
-                U = U0
+                up_vec = up_vec0
                 prev_prob = prob0
             else:
                 bits.append("1")
-                U = U1
+                up_vec = up_vec1
                 prev_prob = prob1
 
         return "".join(bits)
 
     def simulation(self):
-
+        
+        print("[WEAK_SIM] Starting Weak Simulation...")
+        
         self.build_adj_list()
 
         self.check_direction(self.Mapping)
@@ -936,26 +931,11 @@ class WeakSimulation(WeakSimChecker, WeakSimGraphAlgo):
         
         self.build_adj_list()
 
-        if self.DEBUG:
-            self.check_direction(self.Mapping)
-            print("[WEAK_SIM] adj_list:")
-            show_adj_list(self.adj_list)
+        self.compute_L2_and_R2()
 
         self.build_parent_map()
-
-        if self.DEBUG: print("[WEAK_SIM] Parent Map:", self.parent_map)
-
-        self.build_reachable_set()
-
-        # self.check_loop()
-
-        if self.DEBUG: print("[WEAK_SIM] Reachable Set:", self.reachable_set)
-
-        if self.DEBUG: print("[WEAK_SIM] Computing Downstream Contributions...")
-        
-        self.compute_downstream_contributions_with_stack()
-
-        if self.DEBUG: print("[WEAK_SIM] Downstream Contributions:", self.downstream)
+    
+        self.compute_downstream_contributions_with_matrix()
         
         self.time_of_each_shots = []
         last_time = time.time()
@@ -992,13 +972,13 @@ class WeakSimulation(WeakSimChecker, WeakSimGraphAlgo):
 
         if not self.probs:
             if not self.sim_result:
-                self.simulation()
+                self.simulation_matrix()
             self.compute_probability()
         return self.probs
 
 def weak_simulation(L, R, Mapping: List[List[int]], NUM_QUBITS: int, TYPE: str = 'numpy', START_TIME: float = 0.0, num_shots: int = 1024, tol: float = 1e-10):
     start_time = time.time()
     weak_sim = WeakSimulation(L, R, Mapping, NUM_QUBITS, TYPE, time.time(), num_shots, tol)
-    return weak_sim.get_result(), time.time() - start_time
+    return weak_sim.get_probs(), time.time() - start_time
 
 
