@@ -276,97 +276,8 @@ def show_adj_list(adj_list: Dict[int, Dict[int, Tuple[float, float]]]):
         for child, (l_val, r_val) in edges.items():
             print(f"-> Child {child}: L={l_val:.2f}, R={r_val:.2f}")
 
-class WeakSimulation:
-
-    root_index = 0
-
-    def __init__(self, 
-                 L, 
-                 R, 
-                 Mapping: List[List[int]], 
-                 NUM_QUBITS: int, 
-                 TYPE: str = 'numpy', 
-                 START_TIME: float = 0.0,
-                 num_shots: int = 1024,
-                 tol: float = 1e-10,
-                 DEBUG: bool = False
-    ):
-        self.L = L
-        self.R = R
-        self.Mapping = Mapping
-        self.NUM_QUBITS = NUM_QUBITS
-        self.TYPE = TYPE
-        self.START_TIME = START_TIME
-        # self.num_shots = max(2**NUM_QUBITS, 1024)
-        self.num_shots = num_shots
-        self.tol = tol
-        self.DEBUG = DEBUG
-
-        if self.TYPE == 'numpy':
-            import numpy as cp
-            import scipy.sparse as sparse
-            
-        elif self.TYPE == 'cupy':
-            import cupy as cp
-            import cupyx.scipy.sparse as sparse
-
-        else:
-            raise ValueError("Unsupported TYPE. Use 'numpy' or 'cupy'.")
-
-        self.cp = cp
-        self.sparse = sparse
-
-        self.one_terminals = Mapping[-2]
-        self.zero_terminals = Mapping[-1]
-        self.num_of_nodes = L.shape[0]
-        self.root_index = 0
-
-        self.adj_list = {}
-        self.parent_map = {}
-
-        self.sim_result = {}
-        self.probs = {}
-        self.downstream = {}
-        self.upstream = {}
-
-        self.reachable_set = set()
-        self.pruned_set = set()
-        assert(self.NUM_QUBITS + 2 == len(self.Mapping))
-        self.my_Mapping = [[] for _ in range(self.NUM_QUBITS + 2)]
-
-    def build_adj_list(self):
-        
-        if self.DEBUG:
-            print("[WEAK_SIM] Building adjacency list and parent map...")
-            print("[WEAK_SIM] Number of nodes:", self.num_of_nodes)
-
-        from collections import defaultdict
-
-        L_coo = self.L.tocoo()
-        R_coo = self.R.tocoo()
-
-        edges = defaultdict(lambda: [0.0, 0.0])
-
-        for j, i, v in zip(L_coo.row, L_coo.col, L_coo.data):    
-            edges[(int(i), int(j))][0] = float(abs(v) ** 2)
-
-        for j, i, v in zip(R_coo.row, R_coo.col, R_coo.data):    
-            edges[(int(i), int(j))][1] = float(abs(v) ** 2)
-
-
-        if self.DEBUG:
-            print("[WEAK_SIM] Edges found:", len(edges))
-
-        for (i, j), (wL, wR) in edges.items():
-            
-            if i in self.adj_list:
-                self.adj_list[i][j] = (wL, wR)
-            else:
-                self.adj_list[i] = {j: (wL, wR)}
-            
-            if j not in self.adj_list:
-                self.adj_list[j] = {}
-
+class WeakSimChecker:
+    
     def check_direction(self, Mapping):
         
         print("[INFO] Show tht Mapping:")
@@ -397,46 +308,8 @@ class WeakSimulation:
             print("[Error] The adjacency list does not respect the mapping levels.")
         else:
             print("[INFO] All edges in the adjacency list respect the mapping levels.")
-    
-    def prune_edges(self, node_index: int = root_index) -> bool:
 
-        if self.DEBUG:
-            print(f"[WEAK_SIM] Pruning edges for node {node_index}")
-        
-        if node_index in self.zero_terminals:
-            self.pruned_set.add(node_index)
-            return True
-        if node_index in self.one_terminals:
-            return False
-
-        all_child_should_be_pruned = True
-
-        child_nodes = list(self.adj_list[node_index].keys())
-
-        for child_node in child_nodes:
-            if self.prune_edges(child_node):
-                del self.adj_list[node_index][child_node]
-            else:
-                all_child_should_be_pruned = False
-
-        if all_child_should_be_pruned:
-            self.pruned_set.add(node_index)
-        
-        return all_child_should_be_pruned
-
-    def build_parent_map(self):
-        """
-        Build a parent map for the adjacency list.
-        This map will help in computing upstream contributions.
-        """
-
-        for parent_node, children in self.adj_list.items():
-            for child_node in children:
-                if child_node not in self.parent_map:
-                    self.parent_map[child_node] = []
-                self.parent_map[child_node].append(parent_node)
-    
-    def build_reachable_set(self, node_index: int = root_index):
+    def build_reachable_set(self, node_index: int = 0):
         """
         Build a set of reachable nodes starting from the root node.
         This is used to ensure that we only compute contributions for reachable nodes.
@@ -484,7 +357,7 @@ class WeakSimulation:
         print("[INFO] No loops detected.")
         return False
 
-    def build_my_mapping(self, node_index: int = root_index, level: int = 0):
+    def build_my_mapping(self, node_index: int = 0, level: int = 0):
         
         if node_index not in self.my_Mapping[level]:
             if node_index in self.Mapping[-1]:
@@ -602,8 +475,89 @@ class WeakSimulation:
             print(f"[Error] Node {node_index} is not in parent_map.")
         else:
             print(f"[Error] Node {node_index} is in parent_map.")
+
+class WeakSimGraphAlgo:
+    
+    def build_adj_list(self):
         
-    def compute_downstream_contributions(self, node_index: int = root_index) -> float:
+        if self.DEBUG:
+            print("[WEAK_SIM] Building adjacency list and parent map...")
+            print("[WEAK_SIM] Number of nodes:", self.num_of_nodes)
+
+        from collections import defaultdict
+
+        L_coo = self.L.tocoo()
+        R_coo = self.R.tocoo()
+
+        edges = defaultdict(lambda: [0.0, 0.0])
+
+        for j, i, v in zip(L_coo.row, L_coo.col, L_coo.data):    
+            edges[(int(i), int(j))][0] = float(abs(v) ** 2)
+
+        for j, i, v in zip(R_coo.row, R_coo.col, R_coo.data):    
+            edges[(int(i), int(j))][1] = float(abs(v) ** 2)
+
+
+        if self.DEBUG:
+            print("[WEAK_SIM] Edges found:", len(edges))
+
+        for (i, j), (wL, wR) in edges.items():
+            
+            if i in self.adj_list:
+                self.adj_list[i][j] = (wL, wR)
+            else:
+                self.adj_list[i] = {j: (wL, wR)}
+            
+            if j not in self.adj_list:
+                self.adj_list[j] = {}
+
+    def compute_L2_and_R2(self):
+        # elementwise |.|^2 on L and R
+        self.L2 = self.L.copy().tocsr()
+        self.R2 = self.R.copy().tocsr()
+        self.L2.data = self.cp.abs(self.L2.data) ** 2
+        self.R2.data = self.cp.abs(self.R2.data) ** 2
+        self.W2 = self.L2 + self.R2
+
+    def prune_edges(self, node_index: int = 0) -> bool:
+
+        if self.DEBUG:
+            print(f"[WEAK_SIM] Pruning edges for node {node_index}")
+        
+        if node_index in self.zero_terminals:
+            self.pruned_set.add(node_index)
+            return True
+        if node_index in self.one_terminals:
+            return False
+
+        all_child_should_be_pruned = True
+
+        child_nodes = list(self.adj_list[node_index].keys())
+
+        for child_node in child_nodes:
+            if self.prune_edges(child_node):
+                del self.adj_list[node_index][child_node]
+            else:
+                all_child_should_be_pruned = False
+
+        if all_child_should_be_pruned:
+            self.pruned_set.add(node_index)
+        
+        return all_child_should_be_pruned
+
+    def build_parent_map(self):
+        """
+        Build a parent map for the adjacency list.
+        This map will help in computing upstream contributions.
+        """
+
+        for parent_node, children in self.adj_list.items():
+            for child_node in children:
+                if child_node not in self.parent_map:
+                    self.parent_map[child_node] = []
+                self.parent_map[child_node].append(parent_node)
+    
+    def compute_downstream_contributions(self, node_index: int = 0) -> float:
 
         if node_index in self.one_terminals:
             self.downstream[node_index] = 1.0
@@ -658,6 +612,20 @@ class WeakSimulation:
             else:
                 S.append(node_index)
 
+    def compute_downstream_contributions_with_matrix(self):
+        
+        self.down_vec = self.cp.zeros(self.num_of_nodes, dtype=self.cp.float64)
+        
+        down_tmp = self.cp.zeros(self.num_of_nodes, dtype=self.cp.float64)
+        
+        for node in self.one_terminals:
+            self.down_vec[node] = 1.0
+            down_tmp[node] = 1.0
+        
+        for level in range(self.NUM_QUBITS - 1, -1, -1):
+            down_tmp = self.W2.T @ down_tmp
+            self.down_vec += down_tmp
+    
     def compute_upstream_contributions(self):
 
         from collections import deque
@@ -728,6 +696,67 @@ class WeakSimulation:
         if miss_compute:
             print("have not been computed")
 
+class WeakSimulation(WeakSimChecker, WeakSimGraphAlgo):
+
+    def __init__(self, 
+                 L, 
+                 R, 
+                 Mapping: List[List[int]], 
+                 NUM_QUBITS: int, 
+                 TYPE: str = 'numpy', 
+                 START_TIME: float = 0.0,
+                 num_shots: int = 1024,
+                 tol: float = 1e-10,
+                 DEBUG: bool = False
+    ):
+        self.L = L
+        self.R = R
+        self.Mapping = Mapping
+        self.NUM_QUBITS = NUM_QUBITS
+        self.TYPE = TYPE
+        self.START_TIME = START_TIME
+        # self.num_shots = max(2**NUM_QUBITS, 1024)
+        self.num_shots = num_shots
+        self.tol = tol
+        self.DEBUG = DEBUG
+
+        if self.TYPE == 'numpy':
+            import numpy as cp
+            import scipy.sparse as sparse
+            
+        elif self.TYPE == 'cupy':
+            import cupy as cp
+            import cupyx.scipy.sparse as sparse
+
+        else:
+            raise ValueError("Unsupported TYPE. Use 'numpy' or 'cupy'.")
+
+        self.cp = cp
+        self.sparse = sparse
+
+        self.one_terminals = Mapping[-2]
+        self.zero_terminals = Mapping[-1]
+        self.num_of_nodes = L.shape[0]
+        self.root_index = 0
+
+        self.adj_list = {}
+        self.parent_map = {}
+
+        self.sim_result = {}
+        self.probs = {}
+        self.downstream = {}
+        self.upstream = {}
+
+        self.reachable_set = set()
+        self.pruned_set = set()
+        assert(self.NUM_QUBITS + 2 == len(self.Mapping))
+        self.my_Mapping = [[] for _ in range(self.NUM_QUBITS + 2)]
+
+        self.down_vec = None
+        self.L2 = None # L2 = elementwise |L|^2
+        self.R2 = None # R2 = elementwise |R|^2
+        self.W2 = None # W2 = L2 + R2
+
     def simulation_once(self) -> str:
 
         result = ""
@@ -773,70 +802,36 @@ class WeakSimulation:
     def simulation_once_matrix(self) -> str:
         """
         Matrix-based weak simulation following the given pseudocode:
-          U <- e_root
+          u <- e_root
           L2 = |L|^2, R2 = |R|^2
-          d  = downstream as a vector (diagonal of D)
+          d  = downstream as a vector
           For each qubit:
-            U0 = L2 @ U
-            U1 = R2 @ U
-            prob0 = d^T U0
-            prob1 = d^T U1
+            u0 = L2 @ u
+            u1 = R2 @ u
+            prob0 = d^T u0
+            prob1 = d^T u1
             sample x in {0,1} with probs {prob0/prev_prob, prob1/prev_prob}
-            if x == 0: U <- U0; prev_prob <- prob0
-            else:      U <- U1; prev_prob <- prob1
+            if x == 0: u <- u0; prev_prob <- prob0
+            else:      u <- u1; prev_prob <- prob1
         """
         cp = self.cp
         sparse = self.sparse
         import random
 
-        # --- Lazy precompute |L|^2 and |R|^2 (cached) ---
-        if not hasattr(self, "_L2") or self._L2 is None:
-            L2 = self.L.copy().tocsr()
-            R2 = self.R.copy().tocsr()
-            # elementwise |.|^2 on data
-            L2.data = cp.abs(L2.data) ** 2
-            R2.data = cp.abs(R2.data) ** 2
-            # ensure real dtype for safety
-            if getattr(L2.data, "dtype", None) is not None and L2.data.dtype.kind != 'f':
-                L2.data = L2.data.astype(cp.float64)
-                L2 = L2.astype(cp.float64)
-            if getattr(R2.data, "dtype", None) is not None and R2.data.dtype.kind != 'f':
-                R2.data = R2.data.astype(cp.float64)
-                R2 = R2.astype(cp.float64)
-            self._L2 = L2
-            self._R2 = R2
-        else:
-            L2 = self._L2
-            R2 = self._R2
-
-        # --- Lazy precompute downstream vector d (cached) ---
-        if not hasattr(self, "_dvec") or self._dvec is None:
-            # make sure downstream is available
-            if not self.downstream:
-                self.compute_downstream_contributions()
-            dvec = cp.zeros(self.num_of_nodes, dtype=cp.float64)
-            keys = list(self.downstream.keys())
-            vals = [self.downstream[k] for k in keys]
-            if len(keys) > 0:
-                dvec[cp.asarray(keys, dtype=cp.int64)] = cp.asarray(vals, dtype=cp.float64)
-            self._dvec = dvec
-        else:
-            dvec = self._dvec
-
         # --- Initialize U at root ---
-        U = cp.zeros(self.num_of_nodes, dtype=cp.float64)
-        U[self.root_index] = 1.0
+        up_vec = cp.zeros(self.num_of_nodes, dtype=cp.float64)
+        up_vec[self.root_index] = 1.0
 
         # robust init (equals 1 if graph is normalized)
-        prev_prob = float(cp.dot(self._dvec, U))
+        prev_prob = float(cp.dot(self.down_vec, up_vec))
 
         bits = []
         for _ in range(self.NUM_QUBITS):
-            U0 = L2.dot(U)
-            U1 = R2.dot(U)
+            up_vec0 = self.L2.dot(up_vec)
+            up_vec1 = self.R2.dot(up_vec)
 
-            prob0 = float(cp.dot(self._dvec, U0))
-            prob1 = float(cp.dot(self._dvec, U1))
+            prob0 = float(cp.dot(self.down_vec, up_vec0))
+            prob1 = float(cp.dot(self.down_vec, up_vec1))
 
             denom = max(prev_prob, self.tol)
             p0 = prob0 / denom
@@ -848,17 +843,19 @@ class WeakSimulation:
 
             if random.random() < p0:
                 bits.append("0")
-                U = U0
+                up_vec = up_vec0
                 prev_prob = prob0
             else:
                 bits.append("1")
-                U = U1
+                up_vec = up_vec1
                 prev_prob = prob1
 
         return "".join(bits)
 
     def simulation(self):
-
+        
+        print("[WEAK_SIM] Starting Weak Simulation...")
+        
         self.build_adj_list()
 
         self.check_direction(self.Mapping)
@@ -934,26 +931,11 @@ class WeakSimulation:
         
         self.build_adj_list()
 
-        if self.DEBUG:
-            self.check_direction(self.Mapping)
-            print("[WEAK_SIM] adj_list:")
-            show_adj_list(self.adj_list)
+        self.compute_L2_and_R2()
 
         self.build_parent_map()
-
-        if self.DEBUG: print("[WEAK_SIM] Parent Map:", self.parent_map)
-
-        self.build_reachable_set()
-
-        # self.check_loop()
-
-        if self.DEBUG: print("[WEAK_SIM] Reachable Set:", self.reachable_set)
-
-        if self.DEBUG: print("[WEAK_SIM] Computing Downstream Contributions...")
-        
-        self.compute_downstream_contributions_with_stack()
-
-        if self.DEBUG: print("[WEAK_SIM] Downstream Contributions:", self.downstream)
+    
+        self.compute_downstream_contributions_with_matrix()
         
         self.time_of_each_shots = []
         last_time = time.time()
@@ -990,13 +972,13 @@ class WeakSimulation:
 
         if not self.probs:
             if not self.sim_result:
-                self.simulation()
+                self.simulation_matrix()
             self.compute_probability()
         return self.probs
 
 def weak_simulation(L, R, Mapping: List[List[int]], NUM_QUBITS: int, TYPE: str = 'numpy', START_TIME: float = 0.0, num_shots: int = 1024, tol: float = 1e-10):
     start_time = time.time()
     weak_sim = WeakSimulation(L, R, Mapping, NUM_QUBITS, TYPE, time.time(), num_shots, tol)
-    return weak_sim.get_result(), time.time() - start_time
+    return weak_sim.get_probs(), time.time() - start_time
 
 
