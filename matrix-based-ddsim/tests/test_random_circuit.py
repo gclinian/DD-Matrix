@@ -1,6 +1,7 @@
 from src.mbdd.gates import *
 from src.mbdd.circuit import *
 from src.mbdd.simulator import *
+from src.mbdd.comparator import *
 
 import random
 import time
@@ -81,6 +82,11 @@ def simulate_once(num_qubits, num_gates, threshold=0.5, operations=None):
         print(f"  Error:      {strong_result['error']}")
     
     print("" + "-" * 50)
+
+    # Compare results
+
+    
+
 
 def test_simulation():
     # Define test configurations: (num_qubits, num_gates)

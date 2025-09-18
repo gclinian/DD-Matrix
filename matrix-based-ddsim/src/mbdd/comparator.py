@@ -118,3 +118,22 @@ def dd_sampler(dd_result: Dict[Tuple[int, ...], complex], sample_size: int) -> D
         dd_sample_result[state] /= sample_size
     
     return dd_sample_result
+
+def compare_strong_weak(strong_amp: dict, weak_prob: dict):
+    
+    tuple_to_str = lambda t: "".join(map(str, t))
+    strong_prob = {tuple_to_str(k): float(abs(v)**2) for k, v in strong_amp.items()}
+    keys = sorted(set(strong_prob) | set(weak_prob))
+    rows = []
+    for k in keys:
+        ps = strong_prob.get(k, 0.0)
+        pw = weak_prob.get(k, 0.0)
+        rel = abs(ps - pw) / ps if ps > 0 else np.nan
+        rows.append((k, ps, pw, rel))
+    # summary
+    L1 = sum(abs(strong_prob.get(k,0)-weak_prob.get(k,0)) for k in keys)
+    KL = sum(
+        strong_prob[k]*np.log(strong_prob[k]/weak_prob[k])
+        for k in keys if strong_prob.get(k,0)>0 and weak_prob.get(k,0)>0
+    )
+    return rows, {"L1": L1, "KL": KL, "sum_strong": sum(strong_prob.values()), "sum_weak": sum(weak_prob.values())}

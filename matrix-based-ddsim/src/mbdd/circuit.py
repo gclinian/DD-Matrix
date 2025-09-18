@@ -716,7 +716,7 @@ def dd_sparse(operations: List[GateOperation], MATRIX_SIZE: int, NUM_QUBITS: int
         # print(MATRIX_SIZE, Mapping.getrow(-2).indices.tolist())
         sim_result, sim_time = simulation_all_path(L, R, Mapping.getrow(-2).indices.tolist(), NUM_QUBITS, TYPE, START_TIME)
     elif MODE == 'weak_simulation':
-        print([Mapping.indices.tolist()[Mapping.indptr[i]:Mapping.indptr[i+1]] for i in range(Mapping.shape[0])])
+        # print([Mapping.indices.tolist()[Mapping.indptr[i]:Mapping.indptr[i+1]] for i in range(Mapping.shape[0])])
         sim_result, sim_time = weak_simulation(L, R, [Mapping.indices.tolist()[Mapping.indptr[i]:Mapping.indptr[i+1]] for i in range(Mapping.shape[0])], NUM_QUBITS, TYPE, START_TIME, num_shots=1024)
 
     # sim_result = 0
