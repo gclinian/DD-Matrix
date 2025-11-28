@@ -1,0 +1,20 @@
+[project]
+name = "dd-matrix"
+version = "0.1.0"
+description = "A quantum circuit simulation tool using weighted binary decision diagram with GPU acceleration."
+requires-python = ">=3.12"
+
+dependencies = [
+  "numpy>=2.2",
+  "scipy>=1.16",
+  "pandas>=2.3",
+
+  "cupy-cuda12x==13.4.1",
+  "cudaq==0.11.0",
+  "cuda-quantum-cu12==0.11.0",
+  "cuquantum-python-cu12==25.3.0",
+  "cudensitymat-cu12==0.1.0",
+
+  "openpyxl>=3.1",
+  "requests>=2.32",
+]

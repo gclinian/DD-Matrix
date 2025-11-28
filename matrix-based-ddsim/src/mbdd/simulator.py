@@ -325,7 +325,7 @@ class WeakSimChecker:
 
     def check_loop(self):
         """
-        Check if there are any loops in the adjacency list.
+        Check if there is any loop in the adjacency list.
         This is used to ensure that the graph is acyclic.
         """
 
@@ -929,11 +929,11 @@ class WeakSimulation(WeakSimChecker, WeakSimGraphAlgo):
 
     def simulation_matrix(self):
         
-        self.build_adj_list()
+        # self.build_adj_list()
 
         self.compute_L2_and_R2()
 
-        self.build_parent_map()
+        # self.build_parent_map()
     
         self.compute_downstream_contributions_with_matrix()
         
@@ -979,6 +979,6 @@ class WeakSimulation(WeakSimChecker, WeakSimGraphAlgo):
 def weak_simulation(L, R, Mapping: List[List[int]], NUM_QUBITS: int, TYPE: str = 'numpy', START_TIME: float = 0.0, num_shots: int = 1024, tol: float = 1e-10):
     start_time = time.time()
     weak_sim = WeakSimulation(L, R, Mapping, NUM_QUBITS, TYPE, time.time(), num_shots, tol)
-    return weak_sim.get_probs(), time.time() - start_time
+    return weak_sim.get_result(), time.time() - start_time
 
 
