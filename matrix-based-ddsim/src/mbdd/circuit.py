@@ -657,15 +657,19 @@ def dd_sparse(operations: List[GateOperation], MATRIX_SIZE: int, NUM_QUBITS: int
 
             # print("end construct, time spent:", time.time() - construct_start)
 
-            if Mapping[-2].nnz == 0:
-                print("op: ", op)
-                print("Mapping: ", Mapping)
+            # if Mapping[-2].nnz == 0:
+            #     print("op: ", op)
+            #     print("Mapping: ", Mapping)
 
             MATRIX_SIZE = L.shape[0]
+
+            # print("1 leaf: ", Mapping.indices[Mapping.indptr[NUM_QUBITS]])
+            # print("0 leaf: ", Mapping.indices[Mapping.indptr[NUM_QUBITS+1]])
 
             # reorder_start = time.time()
 
             reorder_mapping = Mapping.indices.tolist()
+            # print("reorder_mapping before: ", reorder_mapping)
 
             L = L[reorder_mapping, :][:, reorder_mapping]
 
@@ -714,10 +718,11 @@ def dd_sparse(operations: List[GateOperation], MATRIX_SIZE: int, NUM_QUBITS: int
     # print("MATRIX_SIZE: ", MATRIX_SIZE)
     if MODE == 'strong_simulation':
         # print(MATRIX_SIZE, Mapping.getrow(-2).indices.tolist())
+        # print([Mapping.indices.tolist()[Mapping.indptr[i]:Mapping.indptr[i+1]] for i in range(Mapping.shape[0])])
         sim_result, sim_time = simulation_all_path(L, R, Mapping.getrow(-2).indices.tolist(), NUM_QUBITS, TYPE, START_TIME)
     elif MODE == 'weak_simulation':
         # print([Mapping.indices.tolist()[Mapping.indptr[i]:Mapping.indptr[i+1]] for i in range(Mapping.shape[0])])
-        sim_result, sim_time = weak_simulation(L, R, [Mapping.indices.tolist()[Mapping.indptr[i]:Mapping.indptr[i+1]] for i in range(Mapping.shape[0])], NUM_QUBITS, TYPE, START_TIME, num_shots=1024)
+        sim_result, sim_time = weak_simulation(L, R, [Mapping.indices.tolist()[int(Mapping.indptr[i]):int(Mapping.indptr[i+1])] for i in range(Mapping.shape[0])], NUM_QUBITS, TYPE, START_TIME, num_shots=1024)
 
     # sim_result = 0
     return exec_time, sim_result, sim_time, MATRIX_SIZE

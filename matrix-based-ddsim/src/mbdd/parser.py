@@ -21,7 +21,6 @@ from mbdd.gates import *
 _PI_ENV = {"pi": math.pi, "tau": 2*math.pi, "e": math.e}
 
 def eval_expr(expr: str) -> float:
-    """安全地把 'pi/2', '3*pi/4', '1.570796'… 轉成 float"""
     return eval(expr, {"__builtins__": None}, _PI_ENV)
 
 def rot_x(theta: float):
@@ -138,7 +137,6 @@ def parse_reals(path: Path) -> Tuple[int, List[GateOperation]]:
     return num_qubits, gate_list
         
 def parse_qasm(path: Path) -> Tuple[int, List[GateOperation]]:
-    # 固定閘對應表
     gate_str_to_enum = {
         'x': GateType.X,  'y': GateType.Y,  'z': GateType.Z,  'h': GateType.H,
         's': GateType.S,  'sdg': GateType.SDG,
@@ -156,35 +154,35 @@ def parse_qasm(path: Path) -> Tuple[int, List[GateOperation]]:
                     or line.startswith('include')):
                 continue
 
-            # qreg 宣告
+            # qreg
             if line.startswith('qreg'):
                 m = re.search(r'qreg\s+\w+\[(\d+)\]', line)
                 if m:
                     num_qubits = num_qubits + int(m.group(1))
                 continue
-            # creg 宣告（忽略）
+            # ignore creg
             if line.startswith('creg'):
                 continue
 
-            # barrier 宣告（忽略）
+            # ignore barrier
             if line.startswith('barrier'):
                 continue
-            # measure 宣告（忽略）
+            # ignore measure
             if line.startswith('measure'):
                 continue
-            # ===== 解析 gate token、參數、qubit 清單 =====
+
             m = re.match(r'([a-zA-Z_][\w]*)(\([^)]*\))?\s+(.*)', line)
             if not m:
                 print(f"Malformed line: {line}"); continue
             token, param_group, qubits_part = m.groups()
             qubit_strs = [q.strip() for q in qubits_part.split(',')]
 
-            # ── 拆出控制字首 (c、cc …) ──
+            # control
             ctrl_prefix = re.match(r'c+', token)
             num_ctrl = len(ctrl_prefix.group()) if ctrl_prefix else 0
             base_token = token[num_ctrl:]
 
-            #處理swap gate (拆成3個cnot)
+            #swap -> cnot
             if base_token == 'swap' or base_token == 'cswap':
                 if len(qubit_strs) != 2 + num_ctrl:
                     print(f"Control/target mismatch in: {line}"); continue
@@ -206,30 +204,23 @@ def parse_qasm(path: Path) -> Tuple[int, List[GateOperation]]:
                 )
                 continue
 
-            # ── 取得角度參數（若有） ──
             params = []
             if param_group:                       # "(theta,phi,…)" → list[str]
                 params = [p.strip() for p in param_group[1:-1].split(',')]
                 params = [eval_expr(p) for p in params]
 
-            # ── 驗證 qubit 數 ──
             if len(qubit_strs) != (num_ctrl + 1):
                 print(f"Control/target mismatch in: {line}"); continue
             ctrls = [extract_qubit_index(q) for q in qubit_strs[:-1]]
             target = extract_qubit_index(qubit_strs[-1])
 
-            # ===== 對應到 GateOperation =====
-            #
-            # 1. 固定單量子閘
             if not params and base_token in gate_str_to_enum:
                 gate_enum = gate_str_to_enum[base_token]
                 gate_op = operation_constructor(gate_enum, target,
                                                 ctrls if num_ctrl else None)
                 gate_list.append(gate_op); continue
 
-            # 2. 參數化單量子閘（rx/ry/rz/p/u1/u2/u3）
             if base_token in {'rx','ry','rz','p','phase','u1','u2','u3'}:
-                # 生成對應矩陣
                 if base_token == 'rx': M = rot_x(params[0])
                 elif base_token == 'ry': M = rot_y(params[0])
                 elif base_token == 'rz': M = rot_z(params[0])
@@ -254,9 +245,7 @@ def parse_qasm(path: Path) -> Tuple[int, List[GateOperation]]:
                 )
                 continue
 
-            # 3. 控制版（cp/crx/cry/crz）
             if base_token in {'p','rx','ry','rz'} and num_ctrl >= 1:
-                # 重用上面矩陣生成功能
                 if base_token == 'p': M = phase(params[0])
                 elif base_token == 'rx': M = rot_x(params[0])
                 elif base_token == 'ry': M = rot_y(params[0])
